@@ -1,0 +1,15 @@
+npm notice run salesflow-dashboard@1.0.0 npx
+npm notice run next dev --turbo -p 3300
+  ▲ Next.js 14.2.15 (turbo)
+  - Local:        http://localhost:3300
+
+ ✓ Starting...
+ ✓ Ready in 9.1s
+ ○ Compiling / ...
+ ✓ Compiled / in 57.7s
+ GET / 200 in 61731ms
+ ⚠ Found a change in next.config.mjs. Restarting the server to apply the changes...
+  ▲ Next.js 14.2.15 (turbo)
+  - Local:        http://localhost:3300
+
+ ✓ Starting...

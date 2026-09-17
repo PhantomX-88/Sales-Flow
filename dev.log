@@ -1,0 +1,49 @@
+npm notice run salesflow-dashboard@1.0.0 npx
+npm notice run next dev -p 3100
+  ▲ Next.js 14.2.15
+  - Local:        http://localhost:3100
+
+ ✓ Starting...
+ ✓ Ready in 17.1s
+ ○ Compiling / ...
+ ✓ Compiled / in 99.8s (1987 modules)
+ GET / 200 in 8827ms
+ GET / 200 in 4132ms
+ GET / 200 in 1147ms
+ GET / 200 in 1169ms
+ GET / 200 in 3712ms
+ GET / 200 in 748ms
+ GET / 200 in 1523ms
+ GET / 200 in 593ms
+ GET / 200 in 3792ms
+ GET / 200 in 1429ms
+ GET / 200 in 1338ms
+ ✓ Compiled in 18.5s (1980 modules)
+ GET / 200 in 9078ms
+ GET / 200 in 389ms
+ GET / 200 in 904ms
+ GET / 200 in 1060ms
+ GET / 200 in 34391ms
+ GET / 200 in 623ms
+ ✓ Compiled in 13s (1980 modules)
+ ✓ Compiled in 4.4s (1980 modules)
+ GET / 200 in 2146ms
+ GET / 200 in 22496ms
+ ✓ Compiled in 50.3s (1980 modules)
+ GET / 200 in 37953ms
+ GET / 200 in 935ms
+ GET / 200 in 1943ms
+ GET / 200 in 1069ms
+ GET / 200 in 6619ms
+ GET / 200 in 4049ms
+ GET / 200 in 6527ms
+ GET / 200 in 1532ms
+ GET / 200 in 915ms
+ GET / 200 in 1397ms
+ GET / 200 in 526ms
+ GET / 200 in 853ms
+ GET / 200 in 1995ms
+ GET / 200 in 667ms
+ GET / 200 in 1166ms
+ ✓ Compiled in 59.5s (1976 modules)
+ ✓ Compiled in 4.9s (1976 modules)

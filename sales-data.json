@@ -1,0 +1,488 @@
+{
+  "metadata": {
+    "dataset": "SalesFlow Pipeline Demo",
+    "currency": "USD",
+    "period": "Q3 2026",
+    "lastUpdated": "2026-09-14T09:00:00Z"
+  },
+  "stages": [
+    {
+      "id": "lead",
+      "name": "Lead",
+      "probability": 10
+    },
+    {
+      "id": "discovery",
+      "name": "Discovery",
+      "probability": 20
+    },
+    {
+      "id": "qualified",
+      "name": "Qualified",
+      "probability": 40
+    },
+    {
+      "id": "proposal",
+      "name": "Proposal",
+      "probability": 70
+    },
+    {
+      "id": "negotiation",
+      "name": "Negotiation",
+      "probability": 85
+    },
+    {
+      "id": "closed_won",
+      "name": "Closed Won",
+      "probability": 100
+    },
+    {
+      "id": "closed_lost",
+      "name": "Closed Lost",
+      "probability": 0
+    }
+  ],
+  "owners": [
+    {
+      "id": "ea",
+      "name": "Emmanuel A.",
+      "role": "Sales Manager",
+      "initials": "EA"
+    },
+    {
+      "id": "tk",
+      "name": "Tolu K.",
+      "role": "Account Executive",
+      "initials": "TK"
+    },
+    {
+      "id": "jm",
+      "name": "Janet M.",
+      "role": "Account Executive",
+      "initials": "JM"
+    },
+    {
+      "id": "jd",
+      "name": "John D.",
+      "role": "Business Development",
+      "initials": "JD"
+    }
+  ],
+  "opportunities": [
+    {
+      "id": "OPP-001",
+      "company": "Meridian Health",
+      "contact": "Chidi Okafor",
+      "email": "chidi.okafor@example.com",
+      "phone": "+2348010001001",
+      "stage": "Proposal",
+      "value": 84000,
+      "probability": 70,
+      "owner": "Emmanuel A.",
+      "age": 18,
+      "expectedCloseDate": "2026-09-25",
+      "createdDate": "2026-09-07",
+      "lastActivity": "Today, 9:42 AM",
+      "leadSource": "Referral",
+      "notes": "Corporate health plan proposal awaiting procurement feedback."
+    },
+    {
+      "id": "OPP-002",
+      "company": "Northstar Logistics",
+      "contact": "Amina Yusuf",
+      "email": "amina.yusuf@example.com",
+      "phone": "+2348020001002",
+      "stage": "Negotiation",
+      "value": 126000,
+      "probability": 85,
+      "owner": "Tolu K.",
+      "age": 26,
+      "expectedCloseDate": "2026-09-20",
+      "createdDate": "2026-08-19",
+      "lastActivity": "Today, 8:15 AM",
+      "leadSource": "LinkedIn",
+      "notes": "Commercial terms under negotiation."
+    },
+    {
+      "id": "OPP-003",
+      "company": "Apex Retail Group",
+      "contact": "David Cole",
+      "email": "david.cole@example.com",
+      "phone": "+2348030001003",
+      "stage": "Qualified",
+      "value": 48000,
+      "probability": 40,
+      "owner": "Emmanuel A.",
+      "age": 11,
+      "expectedCloseDate": "2026-10-03",
+      "createdDate": "2026-09-03",
+      "lastActivity": "Yesterday",
+      "leadSource": "Website",
+      "notes": "Qualified after discovery call."
+    },
+    {
+      "id": "OPP-004",
+      "company": "Greenfield Foods",
+      "contact": "Mariam Bello",
+      "email": "mariam.bello@example.com",
+      "phone": "+2348040001004",
+      "stage": "Discovery",
+      "value": 31500,
+      "probability": 20,
+      "owner": "Janet M.",
+      "age": 7,
+      "expectedCloseDate": "2026-10-15",
+      "createdDate": "2026-09-07",
+      "lastActivity": "Yesterday",
+      "leadSource": "Referral",
+      "notes": "Initial requirements gathering."
+    },
+    {
+      "id": "OPP-005",
+      "company": "Sterling Properties",
+      "contact": "Tolu Adeyemi",
+      "email": "tolu.adeyemi@example.com",
+      "phone": "+2348050001005",
+      "stage": "Proposal",
+      "value": 67500,
+      "probability": 70,
+      "owner": "Tolu K.",
+      "age": 22,
+      "expectedCloseDate": "2026-09-29",
+      "createdDate": "2026-08-23",
+      "lastActivity": "Sep 12",
+      "leadSource": "Outbound",
+      "notes": "Proposal reviewed by finance."
+    },
+    {
+      "id": "OPP-006",
+      "company": "Vertex Systems",
+      "contact": "Ifeanyi Nwosu",
+      "email": "ifeanyi.nwosu@example.com",
+      "phone": "+2348060001006",
+      "stage": "Qualified",
+      "value": 92500,
+      "probability": 40,
+      "owner": "Emmanuel A.",
+      "age": 31,
+      "expectedCloseDate": "2026-10-10",
+      "createdDate": "2026-08-14",
+      "lastActivity": "Sep 11",
+      "leadSource": "Partner",
+      "notes": "Follow-up overdue. Technical stakeholder engaged."
+    },
+    {
+      "id": "OPP-007",
+      "company": "BluePeak Energy",
+      "contact": "Sarah James",
+      "email": "sarah.james@example.com",
+      "phone": "+2348070001007",
+      "stage": "Negotiation",
+      "value": 154000,
+      "probability": 85,
+      "owner": "Janet M.",
+      "age": 36,
+      "expectedCloseDate": "2026-09-18",
+      "createdDate": "2026-08-09",
+      "lastActivity": "Sep 10",
+      "leadSource": "Conference",
+      "notes": "Large enterprise opportunity with legal review in progress."
+    },
+    {
+      "id": "OPP-008",
+      "company": "Cedar Consulting",
+      "contact": "Kunle Adebayo",
+      "email": "kunle.adebayo@example.com",
+      "phone": "+2348080001008",
+      "stage": "Closed Won",
+      "value": 72000,
+      "probability": 100,
+      "owner": "Tolu K.",
+      "age": 42,
+      "expectedCloseDate": "2026-09-09",
+      "createdDate": "2026-07-29",
+      "lastActivity": "Sep 09",
+      "leadSource": "Referral",
+      "notes": "Contract signed and handed over to implementation."
+    },
+    {
+      "id": "OPP-009",
+      "company": "Harborline Manufacturing",
+      "contact": "Ngozi Eze",
+      "email": "ngozi.eze@example.com",
+      "phone": "+2348090001009",
+      "stage": "Proposal",
+      "value": 112000,
+      "probability": 70,
+      "owner": "John D.",
+      "age": 16,
+      "expectedCloseDate": "2026-10-01",
+      "createdDate": "2026-08-29",
+      "lastActivity": "Sep 13",
+      "leadSource": "Outbound",
+      "notes": "Proposal sent to HR and CFO."
+    },
+    {
+      "id": "OPP-010",
+      "company": "Lagos Digital Works",
+      "contact": "Femi Balogun",
+      "email": "femi.balogun@example.com",
+      "phone": "+2348100001010",
+      "stage": "Discovery",
+      "value": 27500,
+      "probability": 20,
+      "owner": "John D.",
+      "age": 5,
+      "expectedCloseDate": "2026-10-21",
+      "createdDate": "2026-09-09",
+      "lastActivity": "Sep 13",
+      "leadSource": "Website",
+      "notes": "Discovery meeting scheduled."
+    },
+    {
+      "id": "OPP-011",
+      "company": "PrimeCare Clinics",
+      "contact": "Ireti Adeola",
+      "email": "ireti.adeola@example.com",
+      "phone": "+2348110001011",
+      "stage": "Qualified",
+      "value": 58000,
+      "probability": 40,
+      "owner": "Emmanuel A.",
+      "age": 14,
+      "expectedCloseDate": "2026-10-06",
+      "createdDate": "2026-08-31",
+      "lastActivity": "Sep 12",
+      "leadSource": "Referral",
+      "notes": "Decision maker confirmed."
+    },
+    {
+      "id": "OPP-012",
+      "company": "WestBridge Finance",
+      "contact": "Kelechi Obi",
+      "email": "kelechi.obi@example.com",
+      "phone": "+2348120001012",
+      "stage": "Negotiation",
+      "value": 98000,
+      "probability": 85,
+      "owner": "Tolu K.",
+      "age": 29,
+      "expectedCloseDate": "2026-09-24",
+      "createdDate": "2026-08-16",
+      "lastActivity": "Sep 13",
+      "leadSource": "Partner",
+      "notes": "Final commercial negotiation."
+    },
+    {
+      "id": "OPP-013",
+      "company": "Sunrise Hospitality",
+      "contact": "Bola Martins",
+      "email": "bola.martins@example.com",
+      "phone": "+2348130001013",
+      "stage": "Lead",
+      "value": 22000,
+      "probability": 10,
+      "owner": "John D.",
+      "age": 3,
+      "expectedCloseDate": "2026-11-05",
+      "createdDate": "2026-09-11",
+      "lastActivity": "Sep 13",
+      "leadSource": "LinkedIn",
+      "notes": "New inbound lead."
+    },
+    {
+      "id": "OPP-014",
+      "company": "Oakridge Schools",
+      "contact": "Ada Nnamdi",
+      "email": "ada.nnamdi@example.com",
+      "phone": "+2348140001014",
+      "stage": "Proposal",
+      "value": 45500,
+      "probability": 70,
+      "owner": "Janet M.",
+      "age": 20,
+      "expectedCloseDate": "2026-09-30",
+      "createdDate": "2026-08-25",
+      "lastActivity": "Sep 12",
+      "leadSource": "Referral",
+      "notes": "Proposal presentation completed."
+    },
+    {
+      "id": "OPP-015",
+      "company": "Atlas Mobility",
+      "contact": "Yemi Lawal",
+      "email": "yemi.lawal@example.com",
+      "phone": "+2348150001015",
+      "stage": "Closed Won",
+      "value": 116000,
+      "probability": 100,
+      "owner": "Emmanuel A.",
+      "age": 48,
+      "expectedCloseDate": "2026-09-05",
+      "createdDate": "2026-07-19",
+      "lastActivity": "Sep 05",
+      "leadSource": "Outbound",
+      "notes": "Won after three-stage procurement process."
+    },
+    {
+      "id": "OPP-016",
+      "company": "Riverbank Insurance",
+      "contact": "Sarah Ojo",
+      "email": "sarah.ojo@example.com",
+      "phone": "+2348160001016",
+      "stage": "Qualified",
+      "value": 76500,
+      "probability": 40,
+      "owner": "Janet M.",
+      "age": 17,
+      "expectedCloseDate": "2026-10-12",
+      "createdDate": "2026-08-28",
+      "lastActivity": "Sep 12",
+      "leadSource": "Conference",
+      "notes": "Multi-location opportunity."
+    },
+    {
+      "id": "OPP-017",
+      "company": "Crestline Telecoms",
+      "contact": "Daniel Akin",
+      "email": "daniel.akin@example.com",
+      "phone": "+2348170001017",
+      "stage": "Proposal",
+      "value": 134000,
+      "probability": 70,
+      "owner": "John D.",
+      "age": 24,
+      "expectedCloseDate": "2026-10-02",
+      "createdDate": "2026-08-21",
+      "lastActivity": "Sep 11",
+      "leadSource": "Partner",
+      "notes": "Awaiting executive review."
+    },
+    {
+      "id": "OPP-018",
+      "company": "Evergreen Agro",
+      "contact": "Musa Ibrahim",
+      "email": "musa.ibrahim@example.com",
+      "phone": "+2348180001018",
+      "stage": "Discovery",
+      "value": 39000,
+      "probability": 20,
+      "owner": "Tolu K.",
+      "age": 9,
+      "expectedCloseDate": "2026-10-25",
+      "createdDate": "2026-09-05",
+      "lastActivity": "Sep 13",
+      "leadSource": "Outbound",
+      "notes": "Exploring employee benefits requirements."
+    },
+    {
+      "id": "OPP-019",
+      "company": "Summit Engineering",
+      "contact": "Grace Nwosu",
+      "email": "grace.nwosu@example.com",
+      "phone": "+2348190001019",
+      "stage": "Closed Lost",
+      "value": 65000,
+      "probability": 0,
+      "owner": "John D.",
+      "age": 55,
+      "expectedCloseDate": "2026-09-02",
+      "createdDate": "2026-07-09",
+      "lastActivity": "Sep 02",
+      "leadSource": "Outbound",
+      "notes": "Lost on price after procurement comparison."
+    },
+    {
+      "id": "OPP-020",
+      "company": "Coastal Energy Services",
+      "contact": "Emeka Okoro",
+      "email": "emeka.okoro@example.com",
+      "phone": "+2348200001020",
+      "stage": "Negotiation",
+      "value": 187000,
+      "probability": 85,
+      "owner": "Emmanuel A.",
+      "age": 33,
+      "expectedCloseDate": "2026-09-27",
+      "createdDate": "2026-08-12",
+      "lastActivity": "Sep 14",
+      "leadSource": "CEO Referral",
+      "notes": "High-value enterprise deal. Executive sponsor engaged."
+    }
+  ],
+  "monthlyRevenue": [
+    {
+      "month": "Apr",
+      "pipeline": 290000,
+      "won": 110000
+    },
+    {
+      "month": "May",
+      "pipeline": 330000,
+      "won": 142000
+    },
+    {
+      "month": "Jun",
+      "pipeline": 370000,
+      "won": 154000
+    },
+    {
+      "month": "Jul",
+      "pipeline": 410000,
+      "won": 168000
+    },
+    {
+      "month": "Aug",
+      "pipeline": 465000,
+      "won": 192000
+    },
+    {
+      "month": "Sep",
+      "pipeline": 520000,
+      "won": 236000
+    }
+  ],
+  "forecast": {
+    "quarterlyTarget": 750000,
+    "closedRevenue": 428000,
+    "commit": 196000,
+    "bestCase": 284000
+  },
+  "activities": [
+    {
+      "id": "ACT-001",
+      "type": "proposal",
+      "text": "Proposal sent to Meridian Health",
+      "time": "18 min ago",
+      "opportunityId": "OPP-001"
+    },
+    {
+      "id": "ACT-002",
+      "type": "stage_change",
+      "text": "Amina Yusuf moved Northstar Logistics to Negotiation",
+      "time": "1 hr ago",
+      "opportunityId": "OPP-002"
+    },
+    {
+      "id": "ACT-003",
+      "type": "lead",
+      "text": "New qualified lead from LinkedIn",
+      "time": "2 hrs ago",
+      "opportunityId": "OPP-013"
+    },
+    {
+      "id": "ACT-004",
+      "type": "overdue",
+      "text": "Follow-up overdue for Vertex Systems",
+      "time": "4 hrs ago",
+      "opportunityId": "OPP-006"
+    },
+    {
+      "id": "ACT-005",
+      "type": "won",
+      "text": "Atlas Mobility marked Closed Won",
+      "time": "Yesterday",
+      "opportunityId": "OPP-015"
+    }
+  ]
+}

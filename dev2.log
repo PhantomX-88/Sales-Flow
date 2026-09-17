@@ -1,0 +1,19 @@
+npm notice run salesflow-dashboard@1.0.0 npx
+npm notice run next dev -p 3100
+  ▲ Next.js 14.2.15
+  - Local:        http://localhost:3100
+
+ ✓ Starting...
+ ✓ Ready in 35s
+ ○ Compiling / ...
+ ✓ Compiled / in 97.9s (1985 modules)
+ GET / 200 in 40123ms
+ GET / 200 in 370ms
+ GET / 200 in 434ms
+ GET / 200 in 1249ms
+ GET / 200 in 882ms
+ GET / 200 in 1807ms
+ GET / 200 in 804ms
+ GET / 200 in 692ms
+ ⚠ Found a change in next.config.mjs. Restarting the server to apply the changes...
+[?25h
