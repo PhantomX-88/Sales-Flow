@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
   isReady: boolean;
+  configurationError: string | null;
   workspaceId: string | null;
   displayName: string | null;
   signIn: (email: string, password: string) => Promise<string | null>;
@@ -22,11 +24,19 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [isReady, setIsReady] = React.useState(false);
+  const [configurationError, setConfigurationError] = React.useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = React.useState<string | null>(null);
   const [displayName, setDisplayName] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const supabase = getSupabaseClient();
+    let supabase: SupabaseClient;
+    try {
+      supabase = getSupabaseClient();
+    } catch (error) {
+      setConfigurationError(error instanceof Error ? error.message : "Supabase is not configured.");
+      setIsReady(true);
+      return;
+    }
     let mounted = true;
 
     async function loadSession() {
@@ -99,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isReady, workspaceId, displayName, signIn, signUp, signOut, createWorkspace }}
+      value={{ isAuthenticated, isReady, configurationError, workspaceId, displayName, signIn, signUp, signOut, createWorkspace }}
     >
       {children}
     </AuthContext.Provider>

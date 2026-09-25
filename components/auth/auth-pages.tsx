@@ -41,7 +41,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
 
 export function LoginPage() {
   const router = useRouter();
-  const { isAuthenticated, isReady, signIn } = useAuth();
+  const { configurationError, isAuthenticated, isReady, signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -75,6 +75,7 @@ export function LoginPage() {
           <p className="mb-2 text-sm font-medium text-primary">Welcome back</p>
           <h1 className="text-3xl font-semibold tracking-tight">Sign in to SalesFlow</h1>
           <p className="mt-2 text-sm text-muted-foreground">Manage your pipeline and keep your team moving forward.</p>
+          {configurationError ? <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{configurationError} Add the Supabase environment variables in Vercel, then redeploy.</p> : null}
         </div>
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2"><Label htmlFor="login-email">Work email</Label><Input id="login-email" name="email" type="email" placeholder="you@company.com" required /></div>
