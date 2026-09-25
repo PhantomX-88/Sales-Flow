@@ -1,20 +1,24 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   Building2,
   ChevronUp,
   Download,
+  LogOut,
   LayoutDashboard,
   ListChecks,
   KanbanSquare,
   RotateCcw,
   Settings,
+  Trash2,
   TrendingUp,
   UserRound,
 } from "lucide-react";
 
+import { useAuth } from "@/components/auth/auth-provider";
 import { OwnerAvatar } from "@/components/dashboard/owner-avatar";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -74,6 +78,9 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
   const { forecast, filtered, exportCsv, resetDemoData, updateFilter, setView, ownerNames } =
     usePipeline();
   const [confirmReset, setConfirmReset] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const { signOut, deleteAccount } = useAuth();
+  const router = useRouter();
 
   const currentUser = ownerNames[0] ?? "Emmanuel A.";
   const attainment = Math.min(Math.round(forecast.attainmentPercent), 100);
@@ -208,6 +215,20 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
               Workspace settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                signOut();
+                router.replace("/");
+              }}
+            >
+              <LogOut />
+              Log out
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="text-rose-600">
+              <Trash2 />
+              Delete account
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setConfirmReset(true)} className="text-rose-600">
               <RotateCcw />
               Reset demo data
@@ -223,6 +244,17 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
         description="All local changes — including opportunities you created, edited or moved — will be discarded and the original dataset restored."
         confirmLabel="Reset data"
         onConfirm={resetDemoData}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete account?"
+        description="This demo account and its local session will be removed. You will be signed out and returned to the login page."
+        confirmLabel="Delete account"
+        onConfirm={() => {
+          deleteAccount();
+          router.replace("/");
+        }}
       />
     </div>
   );
