@@ -1,9 +1,7 @@
 /**
  * Core domain types for the SalesFlow pipeline dashboard.
  *
- * These shapes intentionally mirror a REST/GraphQL payload so the mock JSON
- * dataset in `sales-data.json` can later be swapped for a real API response
- * without touching the UI layer.
+ * These shapes mirror the Supabase payloads used by the dashboard provider.
  */
 
 export type PipelineStage =

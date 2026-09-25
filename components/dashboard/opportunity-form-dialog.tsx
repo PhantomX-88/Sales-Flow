@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { defaultProbabilityFor } from "@/lib/metrics";
-import { LEAD_SOURCES, STAGE_ORDER, TODAY } from "@/lib/mock-data";
+import { LEAD_SOURCES, STAGE_ORDER, TODAY } from "@/lib/pipeline-config";
 import type { Opportunity, OpportunityDraft, PipelineStage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 

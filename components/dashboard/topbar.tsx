@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Settings,
-  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -19,7 +18,6 @@ import { NotificationMenu } from "@/components/dashboard/notification-menu";
 import { OwnerAvatar } from "@/components/dashboard/owner-avatar";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -101,8 +99,7 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   } = usePipeline();
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const { signOut, deleteAccount } = useAuth();
-  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const { signOut } = useAuth();
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -202,10 +199,6 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
                 <LogOut />
                 Log out
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="text-rose-600">
-                <Trash2 />
-                Delete account
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -215,17 +208,6 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
         <SearchField inputRef={searchInputRef} />
       </div>
 
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title="Delete account?"
-        description="This demo account and its local session will be removed. You will be signed out and returned to the login page."
-        confirmLabel="Delete account"
-        onConfirm={() => {
-          deleteAccount();
-          router.replace("/");
-        }}
-      />
     </header>
   );
 }

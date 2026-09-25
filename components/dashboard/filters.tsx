@@ -20,7 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useIsDesktop } from "@/lib/use-media-query";
-import { STAGE_ORDER } from "@/lib/mock-data";
+import { STAGE_ORDER } from "@/lib/pipeline-config";
 import type { DateFieldKey, DateRangeKey, PipelineStage, ValueBucket } from "@/lib/types";
 
 const VALUE_OPTIONS: { value: ValueBucket; label: string }[] = [

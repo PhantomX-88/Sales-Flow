@@ -3,7 +3,7 @@ import {
   OPEN_STAGES,
   STAGE_ORDER,
   STAGE_PROBABILITY,
-} from "@/lib/mock-data";
+} from "@/lib/pipeline-config";
 import type {
   AccountSummary,
   Filters,

@@ -1,7 +1,6 @@
 "use client";
 
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
-import { ErrorState } from "@/components/dashboard/error-state";
 import { ForecastCard } from "@/components/dashboard/forecast-card";
 import { KpiGrid } from "@/components/dashboard/kpi-grid";
 import { OpportunitiesSection } from "@/components/dashboard/opportunities-section";
@@ -12,8 +11,6 @@ import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { SalesPerformance } from "@/components/dashboard/sales-performance";
 
 export function OverviewView() {
-  const { simulatedError, toggleSimulatedError } = usePipeline();
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -23,13 +20,7 @@ export function OverviewView() {
         showFilter
       />
 
-      {simulatedError ? (
-        <ErrorState
-          onRetry={toggleSimulatedError}
-          description="We couldn't load your pipeline data. Turn off the simulated error in Settings to restore the dashboard."
-        />
-      ) : (
-        <>
+      <>
           <KpiGrid />
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
@@ -45,8 +36,7 @@ export function OverviewView() {
           </div>
 
           <ActivityFeed limit={6} showViewAll />
-        </>
-      )}
+      </>
     </div>
   );
 }

@@ -8,13 +8,14 @@ import { Dashboard } from "@/components/dashboard/dashboard";
 
 export default function DashboardRoute() {
   const router = useRouter();
-  const { isAuthenticated, isReady } = useAuth();
+  const { isAuthenticated, isReady, workspaceId } = useAuth();
 
   React.useEffect(() => {
     if (isReady && !isAuthenticated) router.replace("/");
-  }, [isAuthenticated, isReady, router]);
+    if (isReady && isAuthenticated && !workspaceId) router.replace("/onboarding");
+  }, [isAuthenticated, isReady, router, workspaceId]);
 
-  if (!isReady || !isAuthenticated) return null;
+  if (!isReady || !isAuthenticated || !workspaceId) return null;
 
   return <Dashboard />;
 }

@@ -25,7 +25,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STAGE_ORDER } from "@/lib/mock-data";
+import { STAGE_ORDER } from "@/lib/pipeline-config";
 import type { Opportunity } from "@/lib/types";
 
 interface OpportunityActionsProps {

@@ -75,11 +75,9 @@ interface SidebarContentProps {
 
 export function SidebarContent({ activeView, onNavigate, className }: SidebarContentProps) {
   const sections = useNavSections();
-  const { forecast, filtered, exportCsv, resetDemoData, updateFilter, setView, ownerNames } =
+  const { forecast, filtered, exportCsv, updateFilter, setView, ownerNames } =
     usePipeline();
-  const [confirmReset, setConfirmReset] = React.useState(false);
-  const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const { signOut, deleteAccount } = useAuth();
+  const { signOut } = useAuth();
   const router = useRouter();
 
   const currentUser = ownerNames[0] ?? "Emmanuel A.";
@@ -224,38 +222,11 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
               <LogOut />
               Log out
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="text-rose-600">
-              <Trash2 />
-              Delete account
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => setConfirmReset(true)} className="text-rose-600">
-              <RotateCcw />
-              Reset demo data
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <ConfirmDialog
-        open={confirmReset}
-        onOpenChange={setConfirmReset}
-        title="Reset demo data?"
-        description="All local changes — including opportunities you created, edited or moved — will be discarded and the original dataset restored."
-        confirmLabel="Reset data"
-        onConfirm={resetDemoData}
-      />
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title="Delete account?"
-        description="This demo account and its local session will be removed. You will be signed out and returned to the login page."
-        confirmLabel="Delete account"
-        onConfirm={() => {
-          deleteAccount();
-          router.replace("/");
-        }}
-      />
     </div>
   );
 }

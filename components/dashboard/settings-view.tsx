@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Database, Download, MonitorPlay, RotateCcw } from "lucide-react";
+import { Download, MonitorPlay } from "lucide-react";
 
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -61,16 +60,12 @@ export function SettingsView() {
   const {
     settings,
     updateSettings,
-    resetDemoData,
     exportCsv,
-    simulatedError,
-    toggleSimulatedError,
     metadata,
     opportunities,
     forecast,
     isLoading,
   } = usePipeline();
-  const [confirmReset, setConfirmReset] = React.useState(false);
 
   return (
     <div className="space-y-6">
@@ -161,9 +156,9 @@ export function SettingsView() {
         </Card>
 
         <Card className="p-5">
-          <h2 className="text-[15px] font-semibold tracking-tight">Data &amp; demo tools</h2>
+          <h2 className="text-[15px] font-semibold tracking-tight">Workspace data</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            This prototype runs entirely on the bundled JSON dataset — no backend calls are made.
+            Opportunities and activities are stored securely in your Supabase workspace.
           </p>
 
           <dl className="mt-4 space-y-2.5 rounded-lg border border-border bg-muted/30 p-3.5">
@@ -184,37 +179,16 @@ export function SettingsView() {
             ))}
           </dl>
 
-          <div className="mt-4 divide-y divide-border border-t border-border">
-            <ToggleRow
-              label="Simulate a data error"
-              description="Preview the dashboard error state and recovery action."
-              checked={simulatedError}
-              onChange={toggleSimulatedError}
-            />
-          </div>
-
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => exportCsv()} disabled={isLoading}>
+            <Button variant="outline" size="sm" onClick={() => exportCsv()} disabled={isLoading || !opportunities.length}>
               <Download className="h-4 w-4" />
               Export pipeline CSV
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setConfirmReset(true)}>
-              <RotateCcw className="h-4 w-4" />
-              Reset demo data
             </Button>
           </div>
 
           <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-border bg-card p-3.5">
-            <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
-              aria-hidden="true"
-            >
-              <Database className="h-4 w-4" />
-            </span>
             <p className="text-2xs leading-relaxed text-muted-foreground">
-              Swap <code className="rounded bg-muted px-1 py-0.5">lib/mock-data.ts</code> for a REST,
-              GraphQL or Supabase client and the UI keeps working — all state flows through the
-              pipeline provider.
+              Row Level Security ensures members only see records belonging to their workspace.
             </p>
           </div>
 
@@ -233,14 +207,6 @@ export function SettingsView() {
         </Card>
       </div>
 
-      <ConfirmDialog
-        open={confirmReset}
-        onOpenChange={setConfirmReset}
-        title="Reset demo data?"
-        description="All local changes — opportunities you created, edited, moved or deleted — will be discarded."
-        confirmLabel="Reset data"
-        onConfirm={resetDemoData}
-      />
     </div>
   );
 }

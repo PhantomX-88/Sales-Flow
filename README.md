@@ -330,6 +330,16 @@ Never commit `.env.local` or secret credentials to GitHub.
 
 Supabase's current Next.js documentation uses these environment variables for the browser-side project URL and publishable key.
 
+## Supabase Setup
+
+1. Create a Supabase project and copy its project URL and publishable key into `.env.local`.
+2. Open the Supabase SQL Editor and run [`supabase/schema.sql`](supabase/schema.sql).
+3. In Authentication settings, choose whether new accounts must confirm their email address. If confirmation is enabled, users confirm their email before signing in.
+4. Start the app with `npm run dev`, create an account, and complete the workspace setup screen.
+5. For Vercel, add the same two `NEXT_PUBLIC_*` variables to the production environment before deploying.
+
+The publishable key is safe for browser use because Row Level Security protects the tables. Never put a service-role key in `.env.local` or client code.
+
 ---
 
 # Production Deployment
@@ -354,9 +364,9 @@ Every push to the production branch can trigger a new deployment through the Git
 
 # Data Strategy
 
-The development version may use local/mock data.
+Supabase is the only application data source. Authentication uses Supabase Auth, while workspaces, members, opportunities and activities are stored in Postgres. Row Level Security scopes every query and mutation to the authenticated user's workspace.
 
-The production version must use Supabase as the persistent data layer.
+The former bundled `sales-data.json` demo dataset has been removed. New workspaces start empty and users add their own opportunities.
 
 Production data should include:
 

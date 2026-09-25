@@ -38,7 +38,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { STAGE_ORDER } from "@/lib/mock-data";
+import { STAGE_ORDER } from "@/lib/pipeline-config";
 import type { ActivityType, PipelineStage } from "@/lib/types";
 import {
   cn,

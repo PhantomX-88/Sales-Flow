@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { useAuth } from "@/components/auth/auth-provider";
 import { toast } from "@/components/ui/use-toast";
 import {
   buildExportRows,
@@ -19,14 +20,7 @@ import {
   isProbabilityOverridden,
   sortOpportunities,
 } from "@/lib/metrics";
-import {
-  cloneInitialActivities,
-  cloneInitialOpportunities,
-  dataset,
-  KANBAN_STAGES,
-  ownerNames,
-  TODAY,
-} from "@/lib/mock-data";
+import { dataset, KANBAN_STAGES, ownerNames as configuredOwnerNames, TODAY } from "@/lib/pipeline-config";
 import type {
   AccountSummary,
   Activity,
@@ -49,6 +43,7 @@ import type {
   TaskItem,
 } from "@/lib/types";
 import { buildCsv, daysBetween, downloadCsv, formatCurrency } from "@/lib/utils";
+import { getSupabaseClient } from "@/lib/supabase";
 
 const DEFAULT_FILTERS: Filters = {
   stage: "all",
@@ -149,13 +144,10 @@ interface PipelineContextValue {
   deleteOpportunity: (id: string) => void;
   addActivity: (opportunityId: string, type: ActivityType, text: string) => void;
   exportCsv: (rows?: Opportunity[], filename?: string) => void;
-  resetDemoData: () => void;
 
   /* settings */
   settings: DashboardSettings;
   updateSettings: (patch: Partial<DashboardSettings>) => void;
-  simulatedError: boolean;
-  toggleSimulatedError: () => void;
 }
 
 const PipelineContext = React.createContext<PipelineContextValue | null>(null);
@@ -196,21 +188,71 @@ function draftToOpportunity(
   };
 }
 
-function nextOpportunityId(opportunities: Opportunity[]): string {
-  const highest = opportunities.reduce((max, opportunity) => {
-    const numeric = Number(opportunity.id.replace(/[^0-9]/g, ""));
-    return Number.isFinite(numeric) ? Math.max(max, numeric) : max;
-  }, 0);
-  return `OPP-${String(highest + 1).padStart(3, "0")}`;
+function toOpportunityRow(opportunity: Opportunity, workspaceId: string) {
+  return {
+    id: opportunity.id,
+    workspace_id: workspaceId,
+    company: opportunity.company,
+    contact: opportunity.contact,
+    email: opportunity.email ?? null,
+    phone: opportunity.phone ?? null,
+    stage: opportunity.stage,
+    value: opportunity.value,
+    probability: opportunity.probability,
+    owner: opportunity.owner,
+    age: opportunity.age,
+    expected_close_date: opportunity.expectedCloseDate,
+    created_date: opportunity.createdDate,
+    last_activity: opportunity.lastActivity,
+    lead_source: opportunity.leadSource,
+    notes: opportunity.notes ?? null,
+    closed_date: opportunity.closedDate ?? null,
+    probability_overridden: opportunity.probabilityOverridden ?? false,
+  };
+}
+
+function fromOpportunityRow(row: Record<string, unknown>): Opportunity {
+  return {
+    id: String(row.id),
+    company: String(row.company),
+    contact: String(row.contact),
+    email: row.email ? String(row.email) : undefined,
+    phone: row.phone ? String(row.phone) : undefined,
+    stage: row.stage as PipelineStage,
+    value: Number(row.value),
+    probability: Number(row.probability),
+    owner: String(row.owner),
+    age: Number(row.age),
+    expectedCloseDate: String(row.expected_close_date),
+    createdDate: String(row.created_date),
+    lastActivity: String(row.last_activity),
+    leadSource: String(row.lead_source),
+    notes: row.notes ? String(row.notes) : undefined,
+    closedDate: row.closed_date ? String(row.closed_date) : undefined,
+    probabilityOverridden: Boolean(row.probability_overridden),
+  };
+}
+
+function fromActivityRow(row: Record<string, unknown>): Activity {
+  return {
+    id: String(row.id),
+    type: row.type as ActivityType,
+    text: String(row.text),
+    time: row.created_at ? new Date(String(row.created_at)).toLocaleString() : "Just now",
+    opportunityId: row.opportunity_id ? String(row.opportunity_id) : undefined,
+  };
 }
 
 export function PipelineProvider({ children }: { children: React.ReactNode }) {
-  const [opportunities, setOpportunities] = React.useState<Opportunity[]>(() =>
-    cloneInitialOpportunities(),
+  const { displayName, isAuthenticated, isReady, workspaceId } = useAuth();
+  const workspaceOwners = React.useMemo(
+    () => displayName ? [{ id: "current-user", name: displayName, role: "Member", initials: displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() }] : [],
+    [displayName],
   );
-  const [activities, setActivities] = React.useState<Activity[]>(() => cloneInitialActivities());
+  const workspaceOwnerNames = workspaceOwners.map((owner) => owner.name);
+  const [opportunities, setOpportunities] = React.useState<Opportunity[]>([]);
+  const [activities, setActivities] = React.useState<Activity[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [simulatedError, setSimulatedError] = React.useState(false);
 
   const [searchQuery, setSearchQueryState] = React.useState("");
   const [filters, setFilters] = React.useState<Filters>(DEFAULT_FILTERS);
@@ -229,11 +271,35 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   const [isCreateOpen, setCreateOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
 
-  /* Simulated initial fetch so loading skeletons are real, not decorative. */
   React.useEffect(() => {
-    const timeout = setTimeout(() => setIsLoading(false), 550);
-    return () => clearTimeout(timeout);
-  }, []);
+    if (!isReady || !isAuthenticated || !workspaceId) {
+      if (isReady) setIsLoading(false);
+      return;
+    }
+
+    let mounted = true;
+    async function loadWorkspaceData() {
+      setIsLoading(true);
+      const supabase = getSupabaseClient();
+      const [opportunitiesResult, activitiesResult] = await Promise.all([
+        supabase.from("opportunities").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+        supabase.from("activities").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
+      ]);
+      if (!mounted) return;
+      if (opportunitiesResult.error || activitiesResult.error) {
+        toast({ title: "Could not load workspace data.", description: "Check your Supabase tables and Row Level Security policies.", variant: "destructive" });
+      } else {
+        setOpportunities((opportunitiesResult.data ?? []).map((row) => fromOpportunityRow(row as Record<string, unknown>)));
+        setActivities((activitiesResult.data ?? []).map((row) => fromActivityRow(row as Record<string, unknown>)));
+      }
+      setIsLoading(false);
+    }
+
+    void loadWorkspaceData();
+    return () => {
+      mounted = false;
+    };
+  }, [isAuthenticated, isReady, workspaceId]);
 
   const setSearchQuery = React.useCallback((value: string) => {
     setSearchQueryState(value);
@@ -321,8 +387,8 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   );
   const funnel = React.useMemo(() => computeFunnel(opportunities), [opportunities]);
   const repPerformance = React.useMemo(
-    () => computeRepPerformance(opportunities, dataset.owners),
-    [opportunities],
+    () => computeRepPerformance(opportunities, workspaceOwners),
+    [opportunities, workspaceOwners],
   );
   const forecast = React.useMemo(
     () => computeForecast(opportunities, dataset.forecast),
@@ -346,47 +412,71 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   /* ------------------------------------------------------------------ */
 
   const pushActivity = React.useCallback(
-    (activity: Omit<Activity, "id" | "time">) => {
-      setActivities((current) => [
-        {
-          ...activity,
-          id: `ACT-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-          time: "Just now",
-        },
-        ...current,
-      ]);
+    async (activity: Omit<Activity, "id" | "time">) => {
+      const id = crypto.randomUUID();
+      setActivities((current) => [{ ...activity, id, time: "Just now" }, ...current]);
+      if (workspaceId) {
+        await getSupabaseClient().from("activities").insert({
+          id,
+          workspace_id: workspaceId,
+          opportunity_id: activity.opportunityId ?? null,
+          type: activity.type,
+          text: activity.text,
+        });
+      }
     },
-    [],
+    [workspaceId],
   );
 
   const createOpportunity = React.useCallback(
-    (draft: OpportunityDraft) => {
-      const id = nextOpportunityId(opportunities);
+    async (draft: OpportunityDraft) => {
+      if (!workspaceId) return;
+      const id = crypto.randomUUID();
       const opportunity = draftToOpportunity(draft, TODAY, id);
-      setOpportunities((current) => [opportunity, ...current]);
-      pushActivity({
+      const { data, error } = await getSupabaseClient()
+        .from("opportunities")
+        .insert(toOpportunityRow(opportunity, workspaceId))
+        .select()
+        .single();
+      if (error || !data) {
+        toast({ title: "Opportunity could not be created.", description: error?.message, variant: "destructive" });
+        return;
+      }
+      const savedOpportunity = fromOpportunityRow(data as Record<string, unknown>);
+      setOpportunities((current) => [savedOpportunity, ...current]);
+      await pushActivity({
         type: "lead",
-        text: `${opportunity.company} added to ${opportunity.stage}`,
-        opportunityId: opportunity.id,
+        text: `${savedOpportunity.company} added to ${savedOpportunity.stage}`,
+        opportunityId: savedOpportunity.id,
       });
       toast({
         title: "Opportunity created successfully.",
-        description: `${opportunity.company} · ${opportunity.stage}`,
+        description: `${savedOpportunity.company} · ${savedOpportunity.stage}`,
         variant: "success",
       });
       setCreateOpen(false);
     },
-    [opportunities, pushActivity],
+    [pushActivity, workspaceId],
   );
 
   const updateOpportunity = React.useCallback(
-    (id: string, draft: OpportunityDraft) => {
+    async (id: string, draft: OpportunityDraft) => {
+      if (!workspaceId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === id);
       if (!existing) return;
 
       const previousStage = existing.stage;
       const updated = draftToOpportunity(draft, TODAY, id, existing);
       const stageChanged = updated.stage !== previousStage;
+      const { error } = await getSupabaseClient()
+        .from("opportunities")
+        .update(toOpportunityRow(updated, workspaceId))
+        .eq("id", id)
+        .eq("workspace_id", workspaceId);
+      if (error) {
+        toast({ title: "Opportunity could not be updated.", description: error.message, variant: "destructive" });
+        return;
+      }
 
       setOpportunities((current) =>
         current.map((opportunity) => (opportunity.id === id ? updated : opportunity)),
@@ -394,7 +484,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       setEditingId(null);
 
       if (stageChanged) {
-        pushActivity({
+        void pushActivity({
           type: "stage_change",
           text: `${updated.company} moved to ${updated.stage}`,
           opportunityId: id,
@@ -409,17 +499,28 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         variant: "success",
       });
     },
-    [opportunities, pushActivity],
+    [opportunities, pushActivity, workspaceId],
   );
 
   const moveStage = React.useCallback(
-    (id: string, stage: PipelineStage) => {
+    async (id: string, stage: PipelineStage) => {
+      if (!workspaceId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === id);
       if (!existing || existing.stage === stage) return;
 
       const isClosedStage = stage === "Closed Won" || stage === "Closed Lost";
       const keepProbability = isProbabilityOverridden(existing) && !isClosedStage;
       const probability = isClosedStage ? defaultProbabilityFor(stage) : keepProbability ? existing.probability : defaultProbabilityFor(stage);
+      const closedDate = isClosedStage ? existing.closedDate ?? TODAY : null;
+      const { error } = await getSupabaseClient()
+        .from("opportunities")
+        .update({ stage, probability, last_activity: "Just now", closed_date: closedDate })
+        .eq("id", id)
+        .eq("workspace_id", workspaceId);
+      if (error) {
+        toast({ title: "Stage could not be changed.", description: error.message, variant: "destructive" });
+        return;
+      }
 
       setOpportunities((current) =>
         current.map((opportunity) =>
@@ -435,7 +536,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         ),
       );
 
-      pushActivity({
+      void pushActivity({
         type: stage === "Closed Won" ? "won" : stage === "Closed Lost" ? "lost" : "stage_change",
         text: `${existing.contact} moved ${existing.company} to ${stage}`,
         opportunityId: id,
@@ -447,13 +548,23 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         variant: stage === "Closed Lost" ? "destructive" : "success",
       });
     },
-    [opportunities, pushActivity],
+    [opportunities, pushActivity, workspaceId],
   );
 
   const closeDeal = React.useCallback(
-    (id: string, stage: "Closed Won" | "Closed Lost") => {
+    async (id: string, stage: "Closed Won" | "Closed Lost") => {
+      if (!workspaceId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === id);
       if (!existing || existing.stage === stage) return;
+      const { error } = await getSupabaseClient()
+        .from("opportunities")
+        .update({ stage, probability: defaultProbabilityFor(stage), closed_date: TODAY, last_activity: "Just now" })
+        .eq("id", id)
+        .eq("workspace_id", workspaceId);
+      if (error) {
+        toast({ title: "Opportunity could not be closed.", description: error.message, variant: "destructive" });
+        return;
+      }
 
       setOpportunities((current) =>
         current.map((opportunity) =>
@@ -469,7 +580,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         ),
       );
 
-      pushActivity({
+      void pushActivity({
         type: stage === "Closed Won" ? "won" : "lost",
         text: `${existing.company} marked ${stage}`,
         opportunityId: id,
@@ -481,15 +592,25 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         variant: stage === "Closed Won" ? "success" : "destructive",
       });
     },
-    [opportunities, pushActivity],
+    [opportunities, pushActivity, workspaceId],
   );
 
   const markWon = React.useCallback((id: string) => closeDeal(id, "Closed Won"), [closeDeal]);
   const markLost = React.useCallback((id: string) => closeDeal(id, "Closed Lost"), [closeDeal]);
 
   const deleteOpportunity = React.useCallback(
-    (id: string) => {
+    async (id: string) => {
+      if (!workspaceId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === id);
+      const { error } = await getSupabaseClient()
+        .from("opportunities")
+        .delete()
+        .eq("id", id)
+        .eq("workspace_id", workspaceId);
+      if (error) {
+        toast({ title: "Opportunity could not be deleted.", description: error.message, variant: "destructive" });
+        return;
+      }
       setOpportunities((current) => current.filter((opportunity) => opportunity.id !== id));
       setSelectedId((current) => (current === id ? null : current));
       toast({
@@ -498,13 +619,23 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       });
     },
-    [opportunities],
+    [opportunities, workspaceId],
   );
 
   const addActivity = React.useCallback(
-    (opportunityId: string, type: ActivityType, text: string) => {
+    async (opportunityId: string, type: ActivityType, text: string) => {
+      if (!workspaceId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === opportunityId);
-      pushActivity({ type, text, opportunityId });
+      await pushActivity({ type, text, opportunityId });
+      const { error } = await getSupabaseClient()
+        .from("opportunities")
+        .update({ last_activity: "Just now" })
+        .eq("id", opportunityId)
+        .eq("workspace_id", workspaceId);
+      if (error) {
+        toast({ title: "Activity could not be saved.", description: error.message, variant: "destructive" });
+        return;
+      }
       setOpportunities((current) =>
         current.map((opportunity) =>
           opportunity.id === opportunityId
@@ -518,7 +649,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         variant: "success",
       });
     },
-    [opportunities, pushActivity],
+    [opportunities, pushActivity, workspaceId],
   );
 
   const exportCsv = React.useCallback(
@@ -544,21 +675,6 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     [sorted],
   );
 
-  const resetDemoData = React.useCallback(() => {
-    setOpportunities(cloneInitialOpportunities());
-    setActivities(cloneInitialActivities());
-    setFilters(DEFAULT_FILTERS);
-    setSearchQueryState("");
-    setSortState(DEFAULT_SORT);
-    setPageState(1);
-    setSelectedId(null);
-    toast({
-      title: "Demo data restored.",
-      description: "The original 20 opportunities are back in place.",
-      variant: "success",
-    });
-  }, []);
-
   const openOpportunity = React.useCallback((id: string) => setSelectedId(id), []);
   const closeOpportunity = React.useCallback(() => setSelectedId(null), []);
   const openCreateDialog = React.useCallback(() => setCreateOpen(true), []);
@@ -566,21 +682,17 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   const openEditDialog = React.useCallback((id: string) => setEditingId(id), []);
   const closeEditDialog = React.useCallback(() => setEditingId(null), []);
 
-  const toggleSimulatedError = React.useCallback(() => {
-    setSimulatedError((current) => !current);
-  }, []);
-
   const toggleFilters = React.useCallback(() => {
     setFiltersOpen((current) => !current);
   }, []);
 
   const value: PipelineContextValue = {
     metadata: dataset.metadata,
-    owners: dataset.owners,
+    owners: workspaceOwners,
     stages: dataset.stages,
     monthlyRevenue: dataset.monthlyRevenue,
     kanbanStages: KANBAN_STAGES,
-    ownerNames,
+    ownerNames: workspaceOwnerNames.length ? workspaceOwnerNames : configuredOwnerNames,
     today: TODAY,
     isLoading,
 
@@ -645,12 +757,9 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     deleteOpportunity,
     addActivity,
     exportCsv,
-    resetDemoData,
 
     settings,
     updateSettings,
-    simulatedError,
-    toggleSimulatedError,
   };
 
   return <PipelineContext.Provider value={value}>{children}</PipelineContext.Provider>;
