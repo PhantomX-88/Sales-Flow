@@ -14,6 +14,9 @@ create table if not exists public.workspaces (
   created_at timestamptz not null default now()
 );
 
+alter table public.workspaces
+  add column if not exists settings jsonb not null default '{}'::jsonb;
+
 create table if not exists public.workspace_members (
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -96,7 +99,13 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
 
-create or replace function public.create_workspace(workspace_name text, workspace_team_size text)
+drop function if exists public.create_workspace(text, text);
+
+create or replace function public.create_workspace(
+  workspace_name text,
+  workspace_team_size text,
+  workspace_settings jsonb default '{}'::jsonb
+)
 returns uuid
 language plpgsql
 security definer
@@ -107,8 +116,8 @@ declare
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
 
-  insert into public.workspaces (name, team_size, created_by)
-  values (trim(workspace_name), workspace_team_size, auth.uid())
+  insert into public.workspaces (name, team_size, created_by, settings)
+  values (trim(workspace_name), workspace_team_size, auth.uid(), coalesce(workspace_settings, '{}'::jsonb))
   returning id into new_workspace_id;
 
   insert into public.workspace_members (workspace_id, user_id, role)
@@ -118,7 +127,7 @@ begin
 end;
 $$;
 
-grant execute on function public.create_workspace(text, text) to authenticated;
+grant execute on function public.create_workspace(text, text, jsonb) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.workspaces enable row level security;

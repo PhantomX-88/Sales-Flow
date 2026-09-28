@@ -1,5 +1,5 @@
-import { LoginPage } from "@/components/auth/auth-pages";
+import { WelcomePage } from "@/components/auth/auth-pages";
 
 export default function Page() {
-  return <LoginPage />;
+  return <WelcomePage />;
 }

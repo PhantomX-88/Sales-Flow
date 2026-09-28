@@ -16,7 +16,18 @@ interface AuthContextValue {
     needsEmailConfirmation: boolean;
   }>;
   signOut: () => void;
-  createWorkspace: (name: string, teamSize: string) => Promise<string | null>;
+  createWorkspace: (
+    name: string,
+    teamSize: string,
+    details: WorkspaceSetupDetails,
+  ) => Promise<string | null>;
+}
+
+export interface WorkspaceSetupDetails {
+  industry: string;
+  salesMotion: string;
+  salesCycle: string;
+  primaryGoal: string;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -42,7 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function loadSession() {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      setIsAuthenticated(Boolean(data.session));
       if (data.session?.user) {
         setDisplayName(
           data.session.user.user_metadata.full_name || data.session.user.email || null,
@@ -54,17 +64,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .limit(1)
           .maybeSingle();
         if (mounted) setWorkspaceId(membership?.workspace_id ?? null);
+        if (mounted) setIsAuthenticated(true);
       }
       setIsReady(true);
     }
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (!mounted) return;
-      setIsAuthenticated(Boolean(session));
-      if (session?.user) {
-        setDisplayName(session.user.user_metadata.full_name || session.user.email || null);
-      }
       if (event === "SIGNED_OUT") {
+        setIsAuthenticated(false);
         setWorkspaceId(null);
         setDisplayName(null);
       }
@@ -102,6 +110,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       options: { data: { full_name: fullName } },
     });
+    if (data.session?.user) {
+      setDisplayName(data.session.user.user_metadata.full_name || data.session.user.email || null);
+      setWorkspaceId(null);
+      setIsAuthenticated(true);
+    }
     return {
       error: error?.message ?? null,
       needsEmailConfirmation: !error && !data.session,
@@ -112,10 +125,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void getSupabaseClient().auth.signOut();
   }, []);
 
-  const createWorkspace = React.useCallback(async (name: string, teamSize: string) => {
+  const createWorkspace = React.useCallback(async (
+    name: string,
+    teamSize: string,
+    details: WorkspaceSetupDetails,
+  ) => {
     const { data, error } = await getSupabaseClient().rpc("create_workspace", {
       workspace_name: name,
       workspace_team_size: teamSize,
+      workspace_settings: details,
     });
     if (!error && data) setWorkspaceId(data as string);
     if (error?.message.includes("schema cache")) {
