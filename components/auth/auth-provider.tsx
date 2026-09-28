@@ -78,8 +78,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = React.useCallback(async (email: string, password: string) => {
-    const { error } = await getSupabaseClient().auth.signInWithPassword({ email, password });
-    return error?.message ?? null;
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) return error?.message ?? "Sign-in did not return a user.";
+
+    const { data: membership, error: membershipError } = await supabase
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", data.user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (membershipError) return `Signed in, but could not load your workspace: ${membershipError.message}`;
+    setWorkspaceId(membership?.workspace_id ?? null);
+    setDisplayName(data.user.user_metadata.full_name || data.user.email || null);
+    setIsAuthenticated(true);
+    return null;
   }, []);
 
   const signUp = React.useCallback(async (fullName: string, email: string, password: string) => {
