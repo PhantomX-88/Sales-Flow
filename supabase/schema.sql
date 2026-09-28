@@ -54,6 +54,13 @@ create table if not exists public.activities (
   created_at timestamptz not null default now()
 );
 
+-- Upgrade tables created by earlier versions that did not include workspace isolation.
+alter table public.opportunities
+  add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
+
+alter table public.activities
+  add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
+
 create index if not exists opportunities_workspace_id_idx on public.opportunities(workspace_id);
 create index if not exists activities_workspace_id_idx on public.activities(workspace_id);
 
