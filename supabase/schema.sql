@@ -136,3 +136,5 @@ create policy opportunities_member_access on public.opportunities for all using 
 
 drop policy if exists activities_member_access on public.activities;
 create policy activities_member_access on public.activities for all using (public.is_workspace_member(workspace_id)) with check (public.is_workspace_member(workspace_id));
+
+notify pgrst, 'reload schema';

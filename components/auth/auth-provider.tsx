@@ -118,6 +118,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       workspace_team_size: teamSize,
     });
     if (!error && data) setWorkspaceId(data as string);
+    if (error?.message.includes("schema cache")) {
+      return "Supabase is missing the workspace setup function. In Supabase, open SQL Editor, run the current supabase/schema.sql file, then try again.";
+    }
     return error?.message ?? null;
   }, []);
 

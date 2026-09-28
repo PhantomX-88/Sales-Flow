@@ -333,7 +333,7 @@ Supabase's current Next.js documentation uses these environment variables for th
 ## Supabase Setup
 
 1. Create a Supabase project and copy its project URL and publishable key into `.env.local`.
-2. Open the Supabase SQL Editor and run [`supabase/schema.sql`](supabase/schema.sql).
+2. Open the Supabase SQL Editor and run the entire [`supabase/schema.sql`](supabase/schema.sql) file. It creates the workspace RPC and refreshes the API schema cache. If you ran an older version already, run the current file again.
 3. In Authentication settings, choose whether new accounts must confirm their email address. If confirmation is enabled, users confirm their email before signing in.
 4. Start the app with `npm run dev`, create an account, and complete the workspace setup screen.
 5. For Vercel, add the same two `NEXT_PUBLIC_*` variables to the production environment before deploying.
