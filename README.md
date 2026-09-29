@@ -335,8 +335,11 @@ Supabase's current Next.js documentation uses these environment variables for th
 1. Create a Supabase project and copy its project URL and publishable key into `.env.local`.
 2. Open the Supabase SQL Editor and run the entire [`supabase/schema.sql`](supabase/schema.sql) file. It creates the workspace RPC and refreshes the API schema cache. If you ran an older version already, run the current file again.
 3. In Authentication settings, choose whether new accounts must confirm their email address. If confirmation is enabled, users confirm their email before signing in.
-4. Start the app with `npm run dev`, create an account, and complete the workspace setup screen.
-5. For Vercel, add the same two `NEXT_PUBLIC_*` variables to the production environment before deploying.
+4. In **Authentication → URL Configuration**, set the Site URL to your deployed app URL and add these Redirect URLs:
+  - `http://localhost:3000/reset-password` for local development.
+  - `https://your-deployed-domain/reset-password` for production, replacing the domain with your Vercel domain.
+5. Start the app with `npm run dev`, create an account, and complete the workspace setup screen.
+6. For Vercel, add the same two `NEXT_PUBLIC_*` variables to the production environment before deploying.
 
 The publishable key is safe for browser use because Row Level Security protects the tables. Never put a service-role key in `.env.local` or client code.
 

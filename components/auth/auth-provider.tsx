@@ -15,6 +15,8 @@ interface AuthContextValue {
     error: string | null;
     needsEmailConfirmation: boolean;
   }>;
+  sendPasswordReset: (email: string) => Promise<string | null>;
+  updatePassword: (password: string) => Promise<string | null>;
   signOut: () => void;
   createWorkspace: (
     name: string,
@@ -121,6 +123,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const sendPasswordReset = React.useCallback(async (email: string) => {
+    const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    return error?.message ?? null;
+  }, []);
+
+  const updatePassword = React.useCallback(async (password: string) => {
+    const { error } = await getSupabaseClient().auth.updateUser({ password });
+    return error?.message ?? null;
+  }, []);
+
   const signOut = React.useCallback(() => {
     void getSupabaseClient().auth.signOut();
   }, []);
@@ -144,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isReady, configurationError, workspaceId, displayName, signIn, signUp, signOut, createWorkspace }}
+      value={{ isAuthenticated, isReady, configurationError, workspaceId, displayName, signIn, signUp, sendPasswordReset, updatePassword, signOut, createWorkspace }}
     >
       {children}
     </AuthContext.Provider>

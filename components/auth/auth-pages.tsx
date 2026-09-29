@@ -113,7 +113,7 @@ export function LoginPage() {
         </div>
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2"><Label htmlFor="login-email">Work email</Label><Input id="login-email" name="email" type="email" placeholder="you@company.com" required /></div>
-          <div className="space-y-2"><div className="flex items-center justify-between"><Label htmlFor="login-password">Password</Label><Link className="text-xs font-medium text-primary hover:underline" href="#">Forgot password?</Link></div><Input id="login-password" name="password" type="password" placeholder="Enter your password" required /></div>
+          <div className="space-y-2"><div className="flex items-center justify-between"><Label htmlFor="login-password">Password</Label><Link className="text-xs font-medium text-primary hover:underline" href="/forgot-password">Forgot password?</Link></div><Input id="login-password" name="password" type="password" placeholder="Enter your password" required /></div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Signing in..." : "Sign in"} <ArrowRight /></Button>
         </form>
@@ -165,6 +165,106 @@ export function SignupPage() {
           <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Creating account..." : "Continue to setup"} <ArrowRight /></Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">Already have an account? <Link className="font-medium text-primary hover:underline" href="/login">Sign in</Link></p>
+      </div>
+    </AuthShell>
+  );
+}
+
+export function ForgotPasswordPage() {
+  const { sendPasswordReset } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+    const form = new FormData(event.currentTarget);
+    const resetError = await sendPasswordReset(String(form.get("email")));
+    if (resetError) {
+      setError(resetError);
+      setPending(false);
+      return;
+    }
+    setSent(true);
+    setPending(false);
+  }
+
+  return (
+    <AuthShell>
+      <div className="w-full max-w-md space-y-7">
+        <div>
+          <p className="mb-2 text-sm font-medium text-primary">Account recovery</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Reset your password</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Enter the email address for your SalesFlow account and we’ll send you a secure reset link.</p>
+        </div>
+        {sent ? (
+          <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+            If an account exists for that email, a password reset link is on its way. Check your inbox and spam folder.
+          </div>
+        ) : (
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="space-y-2"><Label htmlFor="reset-email">Work email</Label><Input id="reset-email" name="email" type="email" placeholder="you@company.com" autoComplete="email" required /></div>
+            {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+            <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Sending link..." : "Send reset link"} <ArrowRight /></Button>
+          </form>
+        )}
+        <p className="text-center text-sm text-muted-foreground"><Link className="font-medium text-primary hover:underline" href="/login">Back to sign in</Link></p>
+      </div>
+    </AuthShell>
+  );
+}
+
+export function ResetPasswordPage() {
+  const { updatePassword } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password"));
+    if (password !== String(form.get("confirmPassword"))) {
+      setError("The passwords do not match.");
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+    const updateError = await updatePassword(password);
+    if (updateError) {
+      setError("This reset link may have expired or already been used. Request a new link and try again.");
+      setPending(false);
+      return;
+    }
+    setSaved(true);
+    setPending(false);
+  }
+
+  return (
+    <AuthShell>
+      <div className="w-full max-w-md space-y-7">
+        <div>
+          <p className="mb-2 text-sm font-medium text-primary">Secure account recovery</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Choose a new password</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Use at least 8 characters for your new password.</p>
+        </div>
+        {saved ? (
+          <div role="status" className="space-y-4">
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">Your password has been updated.</p>
+            <Button asChild className="h-11 w-full"><Link href="/login">Continue to sign in <ArrowRight /></Link></Button>
+          </div>
+        ) : (
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="space-y-2"><Label htmlFor="new-password">New password</Label><Input id="new-password" name="password" type="password" autoComplete="new-password" minLength={8} required /></div>
+            <div className="space-y-2"><Label htmlFor="confirm-password">Confirm new password</Label><Input id="confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required /></div>
+            {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+            <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Updating password..." : "Update password"} <ArrowRight /></Button>
+          </form>
+        )}
+        {!saved ? <p className="text-center text-sm text-muted-foreground"><Link className="font-medium text-primary hover:underline" href="/login">Back to sign in</Link></p> : null}
       </div>
     </AuthShell>
   );
