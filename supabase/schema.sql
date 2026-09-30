@@ -61,8 +61,29 @@ create table if not exists public.activities (
 alter table public.opportunities
   add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
 
+alter table public.opportunities
+  add column if not exists contact text not null default 'Unassigned',
+  add column if not exists email text,
+  add column if not exists phone text,
+  add column if not exists age integer not null default 0,
+  add column if not exists expected_close_date date not null default current_date,
+  add column if not exists created_date date not null default current_date,
+  add column if not exists last_activity text not null default 'Just now',
+  add column if not exists lead_source text not null default 'Other',
+  add column if not exists notes text,
+  add column if not exists closed_date date,
+  add column if not exists probability_overridden boolean not null default false,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
 alter table public.activities
   add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
+
+alter table public.activities
+  add column if not exists opportunity_id uuid references public.opportunities(id) on delete cascade,
+  add column if not exists type text not null default 'note',
+  add column if not exists text text not null default '',
+  add column if not exists created_at timestamptz not null default now();
 
 create index if not exists opportunities_workspace_id_idx on public.opportunities(workspace_id);
 create index if not exists activities_workspace_id_idx on public.activities(workspace_id);
