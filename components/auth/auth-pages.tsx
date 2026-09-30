@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BarChart3, Check, LockKeyhole } from "lucide-react";
+import { ArrowRight, BarChart3, Check, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
@@ -36,6 +36,26 @@ function AuthShell({ children }: { children: React.ReactNode }) {
         <section className="flex items-center justify-center p-6 sm:p-10">{children}</section>
       </div>
     </main>
+  );
+}
+
+function PasswordInput(props: React.ComponentProps<typeof Input>) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="relative">
+      <Input {...props} type={visible ? "text" : "password"} className={`${props.className ?? ""} pr-10`} />
+      <button
+        type="button"
+        onClick={() => setVisible((current) => !current)}
+        className="absolute inset-y-0 right-1 flex w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+        aria-label={visible ? "Hide password" : "Show password"}
+        aria-pressed={visible}
+        title={visible ? "Hide password" : "Show password"}
+      >
+        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
   );
 }
 
@@ -113,7 +133,7 @@ export function LoginPage() {
         </div>
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2"><Label htmlFor="login-email">Work email</Label><Input id="login-email" name="email" type="email" placeholder="you@company.com" required /></div>
-          <div className="space-y-2"><div className="flex items-center justify-between"><Label htmlFor="login-password">Password</Label><Link className="text-xs font-medium text-primary hover:underline" href="/forgot-password">Forgot password?</Link></div><Input id="login-password" name="password" type="password" placeholder="Enter your password" required /></div>
+          <div className="space-y-2"><div className="flex items-center justify-between"><Label htmlFor="login-password">Password</Label><Link className="text-xs font-medium text-primary hover:underline" href="/forgot-password">Forgot password?</Link></div><PasswordInput id="login-password" name="password" placeholder="Enter your password" autoComplete="current-password" required /></div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Signing in..." : "Sign in"} <ArrowRight /></Button>
         </form>
@@ -160,7 +180,7 @@ export function SignupPage() {
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2"><Label htmlFor="signup-name">Full name</Label><Input id="signup-name" name="fullName" type="text" placeholder="Alex Morgan" required /></div>
           <div className="space-y-2"><Label htmlFor="signup-email">Work email</Label><Input id="signup-email" name="email" type="email" placeholder="you@company.com" required /></div>
-          <div className="space-y-2"><Label htmlFor="signup-password">Password</Label><Input id="signup-password" name="password" type="password" placeholder="At least 8 characters" minLength={8} required /></div>
+          <div className="space-y-2"><Label htmlFor="signup-password">Password</Label><PasswordInput id="signup-password" name="password" placeholder="At least 8 characters" autoComplete="new-password" minLength={8} required /></div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Creating account..." : "Continue to setup"} <ArrowRight /></Button>
         </form>
@@ -258,8 +278,8 @@ export function ResetPasswordPage() {
           </div>
         ) : (
           <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2"><Label htmlFor="new-password">New password</Label><Input id="new-password" name="password" type="password" autoComplete="new-password" minLength={8} required /></div>
-            <div className="space-y-2"><Label htmlFor="confirm-password">Confirm new password</Label><Input id="confirm-password" name="confirmPassword" type="password" autoComplete="new-password" minLength={8} required /></div>
+            <div className="space-y-2"><Label htmlFor="new-password">New password</Label><PasswordInput id="new-password" name="password" autoComplete="new-password" minLength={8} required /></div>
+            <div className="space-y-2"><Label htmlFor="confirm-password">Confirm new password</Label><PasswordInput id="confirm-password" name="confirmPassword" autoComplete="new-password" minLength={8} required /></div>
             {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
             <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Updating password..." : "Update password"} <ArrowRight /></Button>
           </form>

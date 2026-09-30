@@ -136,8 +136,8 @@ interface PipelineContextValue {
   closeEditDialog: () => void;
 
   /* actions */
-  createOpportunity: (draft: OpportunityDraft) => void;
-  updateOpportunity: (id: string, draft: OpportunityDraft) => void;
+  createOpportunity: (draft: OpportunityDraft) => Promise<boolean>;
+  updateOpportunity: (id: string, draft: OpportunityDraft) => Promise<boolean>;
   moveStage: (id: string, stage: PipelineStage) => void;
   markWon: (id: string) => void;
   markLost: (id: string) => void;
@@ -430,7 +430,10 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
 
   const createOpportunity = React.useCallback(
     async (draft: OpportunityDraft) => {
-      if (!workspaceId) return;
+      if (!workspaceId) {
+        toast({ title: "Opportunity could not be created.", description: "Your workspace is still loading. Refresh the page and try again.", variant: "destructive" });
+        return false;
+      }
       const id = crypto.randomUUID();
       const opportunity = draftToOpportunity(draft, TODAY, id);
       const { data, error } = await getSupabaseClient()
@@ -440,7 +443,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         .single();
       if (error || !data) {
         toast({ title: "Opportunity could not be created.", description: error?.message, variant: "destructive" });
-        return;
+        return false;
       }
       const savedOpportunity = fromOpportunityRow(data as Record<string, unknown>);
       setOpportunities((current) => [savedOpportunity, ...current]);
@@ -455,15 +458,19 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         variant: "success",
       });
       setCreateOpen(false);
+      return true;
     },
     [pushActivity, workspaceId],
   );
 
   const updateOpportunity = React.useCallback(
     async (id: string, draft: OpportunityDraft) => {
-      if (!workspaceId) return;
+      if (!workspaceId) {
+        toast({ title: "Opportunity could not be updated.", description: "Your workspace is still loading. Refresh the page and try again.", variant: "destructive" });
+        return false;
+      }
       const existing = opportunities.find((opportunity) => opportunity.id === id);
-      if (!existing) return;
+      if (!existing) return false;
 
       const previousStage = existing.stage;
       const updated = draftToOpportunity(draft, TODAY, id, existing);
@@ -475,7 +482,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         .eq("workspace_id", workspaceId);
       if (error) {
         toast({ title: "Opportunity could not be updated.", description: error.message, variant: "destructive" });
-        return;
+        return false;
       }
 
       setOpportunities((current) =>
@@ -498,6 +505,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
           : `${updated.company} saved`,
         variant: "success",
       });
+      return true;
     },
     [opportunities, pushActivity, workspaceId],
   );

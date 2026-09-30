@@ -153,16 +153,16 @@ export function OpportunityFormDialog({
     return next;
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
 
-    if (isEdit && opportunity) updateOpportunity(opportunity.id, draft);
-    else createOpportunity(draft);
-
-    onOpenChange(false);
+    const saved = isEdit && opportunity
+      ? await updateOpportunity(opportunity.id, draft)
+      : await createOpportunity(draft);
+    if (saved) onOpenChange(false);
   };
 
   return (
