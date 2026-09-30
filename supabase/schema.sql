@@ -62,6 +62,12 @@ alter table public.opportunities
   add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
 
 alter table public.opportunities
+  add column if not exists id uuid default gen_random_uuid(),
+  add column if not exists company text not null default '',
+  add column if not exists stage text not null default 'Lead',
+  add column if not exists value numeric not null default 0,
+  add column if not exists probability integer not null default 0,
+  add column if not exists owner text not null default 'Unassigned',
   add column if not exists contact text not null default 'Unassigned',
   add column if not exists email text,
   add column if not exists phone text,
@@ -80,6 +86,7 @@ alter table public.activities
   add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
 
 alter table public.activities
+  add column if not exists id uuid default gen_random_uuid(),
   add column if not exists opportunity_id uuid references public.opportunities(id) on delete cascade,
   add column if not exists type text not null default 'note',
   add column if not exists text text not null default '',

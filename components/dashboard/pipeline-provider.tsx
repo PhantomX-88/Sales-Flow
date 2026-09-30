@@ -190,7 +190,6 @@ function draftToOpportunity(
 
 function toOpportunityRow(opportunity: Opportunity, workspaceId: string) {
   return {
-    id: opportunity.id,
     workspace_id: workspaceId,
     company: opportunity.company,
     contact: opportunity.contact,
@@ -413,17 +412,25 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
 
   const pushActivity = React.useCallback(
     async (activity: Omit<Activity, "id" | "time">) => {
-      const id = crypto.randomUUID();
-      setActivities((current) => [{ ...activity, id, time: "Just now" }, ...current]);
-      if (workspaceId) {
-        await getSupabaseClient().from("activities").insert({
-          id,
+      if (!workspaceId) return;
+      const { data, error } = await getSupabaseClient()
+        .from("activities")
+        .insert({
           workspace_id: workspaceId,
           opportunity_id: activity.opportunityId ?? null,
           type: activity.type,
           text: activity.text,
-        });
+        })
+        .select("id, created_at")
+        .single();
+      if (error || !data) {
+        toast({ title: "Activity could not be saved.", description: error?.message, variant: "destructive" });
+        return;
       }
+      setActivities((current) => [
+        { ...activity, id: String(data.id), time: data.created_at ? new Date(data.created_at).toLocaleString() : "Just now" },
+        ...current,
+      ]);
     },
     [workspaceId],
   );
