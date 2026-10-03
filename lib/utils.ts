@@ -12,34 +12,44 @@ export function cn(...inputs: ClassValue[]) {
 /* Currency & number formatting                                        */
 /* ------------------------------------------------------------------ */
 
-const currencyOptions = {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-} as const;
-
-/** `$84,000` — full precision, used in tables, drawers and forms. */
-export function formatCurrency(value: number): string {
-  if (!Number.isFinite(value)) return "$0";
-  return new Intl.NumberFormat("en-US", currencyOptions).format(value);
+function currencySymbol(currency: "NGN" | "USD") {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+  })
+    .formatToParts(0)
+    .find((part) => part.type === "currency")?.value ?? currency;
 }
 
-/** `$1.4M` / `$486K` — compact form for KPI cards, axes and charts. */
-export function formatCurrencyCompact(value: number): string {
-  if (!Number.isFinite(value)) return "$0";
+/** Full currency precision for tables, drawers and forms. */
+export function formatCurrency(value: number, currency: "NGN" | "USD" = "USD"): string {
+  if (!Number.isFinite(value)) value = 0;
   return new Intl.NumberFormat("en-US", {
-    ...currencyOptions,
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+/** Compact form for KPI cards, axes and charts. */
+export function formatCurrencyCompact(value: number, currency: "NGN" | "USD" = "USD"): string {
+  if (!Number.isFinite(value)) value = 0;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
     notation: "compact",
     maximumFractionDigits: value >= 1_000_000 || value <= -1_000_000 ? 2 : 1,
   }).format(value);
 }
 
-/** `$1.40M` — always uses one decimal unit modifier for chart axes. */
-export function formatCurrencyAxis(value: number): string {
-  if (value === 0) return "$0";
-  if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(value) >= 1_000) return `$${Math.round(value / 1_000)}K`;
-  return `$${value}`;
+/** Compact chart-axis currency formatting. */
+export function formatCurrencyAxis(value: number, currency: "NGN" | "USD" = "USD"): string {
+  const symbol = currencySymbol(currency);
+  if (value === 0) return `${symbol}0`;
+  if (Math.abs(value) >= 1_000_000) return `${symbol}${(value / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(value) >= 1_000) return `${symbol}${Math.round(value / 1_000)}K`;
+  return `${symbol}${value}`;
 }
 
 export function formatNumber(value: number): string {

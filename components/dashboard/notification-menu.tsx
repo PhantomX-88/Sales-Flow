@@ -24,7 +24,7 @@ const TONE_STYLES: Record<NotificationItem["tone"], { icon: typeof Bell; classNa
 };
 
 export function NotificationMenu() {
-  const { opportunities, activities, today, openOpportunity } = usePipeline();
+  const { opportunities, activities, today, openOpportunity, currency } = usePipeline();
   const [readIds, setReadIds] = React.useState<string[]>([]);
 
   const notifications = React.useMemo<NotificationItem[]>(() => {
@@ -37,7 +37,7 @@ export function NotificationMenu() {
       .map((opportunity) => ({
         id: `overdue-${opportunity.id}`,
         title: `${opportunity.company} is past its close date`,
-        detail: `${formatCurrency(opportunity.value)} · ${opportunity.owner}`,
+        detail: `${formatCurrency(opportunity.value, currency)} · ${opportunity.owner}`,
         tone: "danger" as const,
         opportunityId: opportunity.id,
       }));
@@ -52,7 +52,7 @@ export function NotificationMenu() {
       .map((opportunity) => ({
         id: `closing-${opportunity.id}`,
         title: `${opportunity.company} closes this week`,
-        detail: `${formatCurrency(opportunity.value)} · ${opportunity.stage}`,
+        detail: `${formatCurrency(opportunity.value, currency)} · ${opportunity.stage}`,
         tone: "warning" as const,
         opportunityId: opportunity.id,
       }));
@@ -66,7 +66,7 @@ export function NotificationMenu() {
     }));
 
     return [...overdue, ...closingSoon, ...recent];
-  }, [activities, opportunities, today]);
+  }, [activities, currency, opportunities, today]);
 
   const unreadCount = notifications.filter((item) => !readIds.includes(item.id)).length;
 

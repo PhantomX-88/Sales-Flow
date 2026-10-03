@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
-import { useAuth, type WorkspaceSetupDetails } from "@/components/auth/auth-provider";
+import { useAuth } from "@/components/auth/auth-provider";
+import { OrganizationSetupForm } from "@/components/auth/organization-setup-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,11 +62,13 @@ function PasswordInput(props: React.ComponentProps<typeof Input>) {
 
 export function WelcomePage() {
   const router = useRouter();
-  const { configurationError, isAuthenticated, isReady, workspaceId } = useAuth();
+  const { configurationError, isAuthenticated, isReady, organizationId, organization } = useAuth();
 
   useEffect(() => {
-    if (isReady && isAuthenticated) router.replace(workspaceId ? "/dashboard" : "/onboarding");
-  }, [isAuthenticated, isReady, router, workspaceId]);
+    if (isReady && isAuthenticated) {
+      router.replace(organizationId && organization?.onboardingCompleted ? "/dashboard" : "/onboarding");
+    }
+  }, [isAuthenticated, isReady, organization?.onboardingCompleted, organizationId, router]);
 
   if (!isReady || isAuthenticated) return null;
 
@@ -76,7 +79,7 @@ export function WelcomePage() {
           <div className="mb-6 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary lg:hidden">
             <BarChart3 className="size-5" />
           </div>
-          <p className="mb-2 text-sm font-medium text-primary">SalesFlow workspace</p>
+          <p className="mb-2 text-sm font-medium text-primary">SalesFlow organizations</p>
           <h1 className="text-3xl font-semibold tracking-tight">Make every opportunity count.</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
             Keep your pipeline, team activity, and revenue forecast together in one clear view.
@@ -87,7 +90,7 @@ export function WelcomePage() {
           <Button className="h-11 w-full" onClick={() => router.push("/login")}>Log in <ArrowRight /></Button>
           <Button className="h-11 w-full" variant="outline" onClick={() => router.push("/signup")}>Create an account</Button>
         </div>
-        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" /> Secure workspace access</p>
+        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" /> Secure organization access</p>
       </div>
     </AuthShell>
   );
@@ -95,13 +98,15 @@ export function WelcomePage() {
 
 export function LoginPage() {
   const router = useRouter();
-  const { configurationError, isAuthenticated, isReady, signIn, workspaceId } = useAuth();
+  const { configurationError, isAuthenticated, isReady, signIn, organizationId, organization } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    if (isReady && isAuthenticated) router.replace(workspaceId ? "/dashboard" : "/onboarding");
-  }, [isAuthenticated, isReady, router, workspaceId]);
+    if (isReady && isAuthenticated) {
+      router.replace(organizationId && organization?.onboardingCompleted ? "/dashboard" : "/onboarding");
+    }
+  }, [isAuthenticated, isReady, organization?.onboardingCompleted, organizationId, router]);
 
   if (!isReady || isAuthenticated) return null;
 
@@ -138,7 +143,7 @@ export function LoginPage() {
           <Button className="h-11 w-full" type="submit" disabled={pending}>{pending ? "Signing in..." : "Sign in"} <ArrowRight /></Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">New to SalesFlow? <Link className="font-medium text-primary hover:underline" href="/signup">Create an account</Link></p>
-        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" /> Secure workspace access</p>
+        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" /> Secure organization access</p>
       </div>
     </AuthShell>
   );
@@ -176,7 +181,7 @@ export function SignupPage() {
   return (
     <AuthShell>
       <div className="w-full max-w-md space-y-8">
-        <div><p className="mb-2 text-sm font-medium text-primary">Start your workspace</p><h1 className="text-3xl font-semibold tracking-tight">Create your account</h1><p className="mt-2 text-sm text-muted-foreground">Set up your SalesFlow workspace in a few quick steps.</p></div>
+        <div><p className="mb-2 text-sm font-medium text-primary">Join SalesFlow</p><h1 className="text-3xl font-semibold tracking-tight">Create your account</h1><p className="mt-2 text-sm text-muted-foreground">Create your account, then set up your organization.</p></div>
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2"><Label htmlFor="signup-name">Full name</Label><Input id="signup-name" name="fullName" type="text" placeholder="Alex Morgan" required /></div>
           <div className="space-y-2"><Label htmlFor="signup-email">Work email</Label><Input id="signup-email" name="email" type="email" placeholder="you@company.com" required /></div>
@@ -292,84 +297,28 @@ export function ResetPasswordPage() {
 
 export function OnboardingPage() {
   const router = useRouter();
-  const { createWorkspace, isAuthenticated, isReady, workspaceId } = useAuth();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [step, setStep] = useState(1);
-  const [setup, setSetup] = useState({
-    workspaceName: "",
-    teamSize: "1-10",
-    industry: "Technology",
-    salesMotion: "Outbound sales",
-    salesCycle: "1-3 months",
-    primaryGoal: "Grow qualified pipeline",
-  });
+  const { isAuthenticated, isReady, organizationId, organization } = useAuth();
 
   useEffect(() => {
     if (isReady && !isAuthenticated) router.replace("/signup");
-    if (isReady && workspaceId) router.replace("/dashboard");
-  }, [isAuthenticated, isReady, router, workspaceId]);
+    if (isReady && organizationId && organization?.onboardingCompleted) router.replace("/dashboard");
+  }, [isAuthenticated, isReady, organization?.onboardingCompleted, organizationId, router]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (step < 3) {
-      setStep((current) => current + 1);
-      return;
-    }
-    setPending(true);
-    setError(null);
-    const details: WorkspaceSetupDetails = {
-      industry: setup.industry,
-      salesMotion: setup.salesMotion,
-      salesCycle: setup.salesCycle,
-      primaryGoal: setup.primaryGoal,
-    };
-    const createError = await createWorkspace(setup.workspaceName, setup.teamSize, details);
-    if (createError) {
-      setError(createError);
-      setPending(false);
-      return;
-    }
-    router.push("/dashboard");
-  }
+  if (!isReady || !isAuthenticated || (organizationId && organization?.onboardingCompleted)) return null;
 
   return (
     <AuthShell>
       <div className="w-full max-w-md space-y-8">
         <div>
-          <div className="mb-3 flex items-center justify-between text-xs font-medium text-muted-foreground">
-            <span>Workspace setup</span><span>Step {step} of 3</span>
-          </div>
-          <div className="mb-6 grid grid-cols-3 gap-1.5" aria-label={`Step ${step} of 3`}>
-            {[1, 2, 3].map((item) => <span key={item} className={`h-1 rounded-full ${item <= step ? "bg-primary" : "bg-muted"}`} />)}
-          </div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {step === 1 ? "Set up your workspace" : step === 2 ? "Shape your pipeline" : "Review your setup"}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {step === 1 ? "Give your team a home and tell us a little about your business." : step === 2 ? "We’ll tune the starting view around how your team sells." : "Your workspace is ready to be created. You can adjust these details later."}
-          </p>
+          <p className="mb-2 text-sm font-medium text-primary">Organization onboarding</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Set up your company</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Complete these details once. You can edit them later in Settings.</p>
         </div>
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          {step === 1 ? <>
-            <div className="space-y-2"><Label htmlFor="workspace-name">Workspace name</Label><Input id="workspace-name" value={setup.workspaceName} onChange={(event) => setSetup({ ...setup, workspaceName: event.target.value })} placeholder="Acme Sales" maxLength={120} required /></div>
-            <div className="space-y-2"><Label htmlFor="team-size">Team size</Label><select id="team-size" value={setup.teamSize} onChange={(event) => setSetup({ ...setup, teamSize: event.target.value })} className="flex h-10 w-full rounded-lg border border-input bg-card px-3 py-1 text-sm shadow-sm"><option value="1-10">1-10 people</option><option value="11-50">11-50 people</option><option value="51-200">51-200 people</option><option value="201+">201+ people</option></select></div>
-            <div className="space-y-2"><Label htmlFor="industry">Industry</Label><select id="industry" value={setup.industry} onChange={(event) => setSetup({ ...setup, industry: event.target.value })} className="flex h-10 w-full rounded-lg border border-input bg-card px-3 py-1 text-sm shadow-sm">{["Technology", "Professional services", "Financial services", "Healthcare", "Manufacturing", "Retail and commerce", "Other"].map((item) => <option key={item}>{item}</option>)}</select></div>
-          </> : null}
-          {step === 2 ? <>
-            <div className="space-y-2"><Label htmlFor="sales-motion">How does your team sell?</Label><select id="sales-motion" value={setup.salesMotion} onChange={(event) => setSetup({ ...setup, salesMotion: event.target.value })} className="flex h-10 w-full rounded-lg border border-input bg-card px-3 py-1 text-sm shadow-sm">{["Outbound sales", "Inbound-led sales", "Product-led sales", "Partner-led sales", "A mix of channels"].map((item) => <option key={item}>{item}</option>)}</select></div>
-            <div className="space-y-2"><Label htmlFor="sales-cycle">Typical sales cycle</Label><select id="sales-cycle" value={setup.salesCycle} onChange={(event) => setSetup({ ...setup, salesCycle: event.target.value })} className="flex h-10 w-full rounded-lg border border-input bg-card px-3 py-1 text-sm shadow-sm"><option>Under 1 month</option><option>1-3 months</option><option>3-6 months</option><option>Over 6 months</option></select></div>
-            <div className="space-y-2"><Label htmlFor="primary-goal">Primary focus</Label><select id="primary-goal" value={setup.primaryGoal} onChange={(event) => setSetup({ ...setup, primaryGoal: event.target.value })} className="flex h-10 w-full rounded-lg border border-input bg-card px-3 py-1 text-sm shadow-sm"><option>Grow qualified pipeline</option><option>Improve forecast accuracy</option><option>Shorten sales cycles</option><option>Improve team visibility</option></select></div>
-          </> : null}
-          {step === 3 ? <dl className="divide-y divide-border rounded-lg border border-border px-4">{[
-            ["Workspace", setup.workspaceName], ["Team", `${setup.teamSize} people`], ["Industry", setup.industry], ["Sales motion", setup.salesMotion], ["Sales cycle", setup.salesCycle], ["Primary focus", setup.primaryGoal],
-          ].map(([label, value]) => <div key={label} className="flex justify-between gap-4 py-3 text-sm"><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-medium">{value}</dd></div>)}</dl> : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <div className="flex gap-3">
-            {step > 1 ? <Button className="h-11 flex-1" type="button" variant="outline" onClick={() => setStep((current) => current - 1)} disabled={pending}>Back</Button> : null}
-            <Button className="h-11 flex-1" type="submit" disabled={pending || (step === 1 && !setup.workspaceName.trim())}>{pending ? "Creating workspace..." : step === 3 ? "Create workspace" : "Continue"} <ArrowRight /></Button>
-          </div>
-        </form>
+        <OrganizationSetupForm
+          mode="onboarding"
+          initial={organization}
+          onComplete={() => router.replace("/dashboard")}
+        />
         <p className="text-center text-sm text-muted-foreground">Already have an account? <Link className="font-medium text-primary hover:underline" href="/login">Sign in instead</Link></p>
       </div>
     </AuthShell>

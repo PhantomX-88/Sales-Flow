@@ -3,6 +3,8 @@
 import * as React from "react";
 import { Download, MonitorPlay } from "lucide-react";
 
+import { OrganizationSetupForm } from "@/components/auth/organization-setup-form";
+import { useAuth } from "@/components/auth/auth-provider";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -57,6 +59,7 @@ function ToggleRow({
 }
 
 export function SettingsView() {
+  const { organization, membershipRole } = useAuth();
   const {
     settings,
     updateSettings,
@@ -65,13 +68,14 @@ export function SettingsView() {
     opportunities,
     forecast,
     isLoading,
+    currency,
   } = usePipeline();
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-[26px] font-bold leading-tight tracking-tight sm:text-[28px]">
-          Workspace settings
+          Organization settings
         </h1>
         <p className="max-w-2xl text-[13px] leading-relaxed text-muted-foreground sm:text-sm">
           Preferences apply immediately to the dashboard, table and board layouts.
@@ -158,7 +162,7 @@ export function SettingsView() {
         <Card className="p-5">
           <h2 className="text-[15px] font-semibold tracking-tight">Workspace data</h2>
           <p className="mt-1 text-[13px] text-muted-foreground">
-            Opportunities and activities are stored securely in your Supabase workspace.
+            Opportunities and activities are stored securely in your Supabase organization.
           </p>
 
           <dl className="mt-4 space-y-2.5 rounded-lg border border-border bg-muted/30 p-3.5">
@@ -168,7 +172,7 @@ export function SettingsView() {
               { label: "Period", value: metadata.period },
               { label: "Last updated", value: new Date(metadata.lastUpdated).toUTCString() },
               { label: "Records", value: `${opportunities.length} opportunities` },
-              { label: "Quarterly target", value: formatCurrency(forecast.quarterlyTarget) },
+              { label: "Quarterly target", value: formatCurrency(forecast.quarterlyTarget, currency) },
             ].map((row) => (
               <div key={row.label} className="flex items-start justify-between gap-4">
                 <dt className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -188,7 +192,7 @@ export function SettingsView() {
 
           <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-border bg-card p-3.5">
             <p className="text-2xs leading-relaxed text-muted-foreground">
-              Row Level Security ensures members only see records belonging to their workspace.
+              Row Level Security ensures members only see records belonging to their organization.
             </p>
           </div>
 
@@ -206,6 +210,16 @@ export function SettingsView() {
           </div>
         </Card>
       </div>
+
+      {membershipRole === "owner" && organization ? (
+        <Card className="p-5">
+          <div className="mb-5">
+            <h2 className="text-[15px] font-semibold tracking-tight">Organization profile</h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">Company details, targets, and enabled modules.</p>
+          </div>
+          <OrganizationSetupForm mode="settings" initial={organization} />
+        </Card>
+      ) : null}
 
     </div>
   );

@@ -24,7 +24,7 @@ const HEALTH_META: Record<
 };
 
 function AccountCard({ account }: { account: AccountSummary }) {
-  const { openOpportunity } = usePipeline();
+  const { openOpportunity, currency } = usePipeline();
   const health = HEALTH_META[account.health];
   const HealthIcon = health.icon;
 
@@ -56,14 +56,14 @@ function AccountCard({ account }: { account: AccountSummary }) {
           <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
             Open value
           </p>
-          <p className="mt-0.5 text-sm font-semibold tabular">{formatCurrency(account.openValue)}</p>
+          <p className="mt-0.5 text-sm font-semibold tabular">{formatCurrency(account.openValue, currency)}</p>
         </div>
         <div>
           <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
             Won value
           </p>
           <p className="mt-0.5 text-sm font-semibold tabular text-emerald-600">
-            {formatCurrency(account.wonValue)}
+            {formatCurrency(account.wonValue, currency)}
           </p>
         </div>
       </div>

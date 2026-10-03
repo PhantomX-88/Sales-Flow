@@ -13,11 +13,12 @@ import { cn, formatCurrency, formatCurrencyCompact, formatPercent } from "@/lib/
 interface ForecastRowProps {
   label: string;
   value: number;
+  currency: "NGN" | "USD";
   hint: string;
   tone?: "default" | "success" | "muted";
 }
 
-function ForecastRow({ label, value, hint, tone = "default" }: ForecastRowProps) {
+function ForecastRow({ label, value, currency, hint, tone = "default" }: ForecastRowProps) {
   return (
     <div className="flex items-center justify-between gap-3 py-2">
       <Tooltip>
@@ -35,14 +36,14 @@ function ForecastRow({ label, value, hint, tone = "default" }: ForecastRowProps)
           tone === "muted" && "text-muted-foreground",
         )}
       >
-        {formatCurrency(value)}
+        {formatCurrency(value, currency)}
       </span>
     </div>
   );
 }
 
 export function ForecastCard({ className }: { className?: string }) {
-  const { forecast, isLoading, metadata } = usePipeline();
+  const { forecast, isLoading, metadata, currency } = usePipeline();
 
   if (isLoading) {
     return (
@@ -66,7 +67,7 @@ export function ForecastCard({ className }: { className?: string }) {
         <div className="space-y-1">
           <h2 className="text-[15px] font-semibold tracking-tight">Forecast</h2>
           <p className="text-[13px] text-muted-foreground">
-            {metadata.period} · quarterly target {formatCurrencyCompact(forecast.quarterlyTarget)}
+            {metadata.period} · target {formatCurrencyCompact(forecast.quarterlyTarget, currency)}
           </p>
         </div>
         <Badge variant={isOnTrack ? "success" : "warning"} className="shrink-0">
@@ -87,7 +88,7 @@ export function ForecastCard({ className }: { className?: string }) {
                 Closed revenue
               </p>
               <p className="text-[24px] font-bold leading-none tracking-tight tabular text-emerald-600">
-                {formatCurrency(forecast.closedRevenue)}
+                {formatCurrency(forecast.closedRevenue, currency)}
               </p>
             </div>
             <div className="text-right">
@@ -95,7 +96,7 @@ export function ForecastCard({ className }: { className?: string }) {
                 Target
               </p>
               <p className="text-sm font-semibold tabular">
-                {formatCurrency(forecast.quarterlyTarget)}
+                {formatCurrency(forecast.quarterlyTarget, currency)}
               </p>
             </div>
           </div>
@@ -110,7 +111,7 @@ export function ForecastCard({ className }: { className?: string }) {
             <span>{formatPercent(forecast.attainmentPercent, 0)} of quarterly target achieved</span>
             <span>
               {forecast.gapToTarget > 0
-                ? `${formatCurrency(forecast.gapToTarget)} to go`
+                ? `${formatCurrency(forecast.gapToTarget, currency)} to go`
                 : "Target exceeded"}
             </span>
           </div>
@@ -120,22 +121,26 @@ export function ForecastCard({ className }: { className?: string }) {
           <ForecastRow
             label="Commit"
             value={forecast.commit}
+            currency={currency}
             hint="Open deals already at 85% probability or higher"
             tone="default"
           />
           <ForecastRow
             label="Best case"
             value={forecast.bestCase}
+            currency={currency}
             hint="Every open deal closing at full value"
           />
           <ForecastRow
             label="Weighted forecast"
             value={forecast.weightedForecast}
+            currency={currency}
             hint="Open pipeline weighted by current win probability"
           />
           <ForecastRow
             label="Gap to target"
             value={forecast.gapToTarget}
+            currency={currency}
             hint="Quarterly target minus closed revenue"
             tone="muted"
           />

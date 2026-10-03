@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn, formatCurrency, formatCurrencyCompact, formatPercent, STAGE_DOT_STYLES } from "@/lib/utils";
 
 export function PipelineFunnel({ className }: { className?: string }) {
-  const { funnel, isLoading } = usePipeline();
+  const { funnel, isLoading, currency } = usePipeline();
 
   if (isLoading) {
     return (
@@ -67,7 +67,7 @@ export function PipelineFunnel({ className }: { className?: string }) {
                     {stage.reachedCount} {stage.reachedCount === 1 ? "deal" : "deals"}
                   </span>
                   <span className="tabular font-medium text-foreground/80">
-                    {formatCurrencyCompact(stage.reachedValue)}
+                    {formatCurrencyCompact(stage.reachedValue, currency)}
                   </span>
                 </span>
               </div>
@@ -91,12 +91,12 @@ export function PipelineFunnel({ className }: { className?: string }) {
                         )}
                         style={{ width: `${width}%` }}
                       >
-                        {width > 18 ? formatCurrencyCompact(stage.reachedValue) : null}
+                        {width > 18 ? formatCurrencyCompact(stage.reachedValue, currency) : null}
                       </div>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {stage.stage}: {stage.reachedCount} deals · {formatCurrency(stage.reachedValue)}
+                    {stage.stage}: {stage.reachedCount} deals · {formatCurrency(stage.reachedValue, currency)}
                   </TooltipContent>
                 </Tooltip>
 

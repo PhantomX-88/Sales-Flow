@@ -72,7 +72,7 @@ function SortableHead({ label, sortKey, className }: SortableHeadProps) {
 }
 
 function OpportunityRow({ opportunity, compact }: { opportunity: Opportunity; compact: boolean }) {
-  const { openOpportunity, today } = usePipeline();
+  const { openOpportunity, today, currency } = usePipeline();
   const tone = closeDateTone(opportunity.expectedCloseDate, today);
   const cellPadding = compact ? "py-2" : "py-3";
 
@@ -84,7 +84,7 @@ function OpportunityRow({ opportunity, compact }: { opportunity: Opportunity; co
         if (event.key === "Enter") openOpportunity(opportunity.id);
       }}
       className="group cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/60 focus-visible:outline-none"
-      aria-label={`Open ${opportunity.company}, ${opportunity.stage}, ${formatCurrency(opportunity.value)}`}
+      aria-label={`Open ${opportunity.company}, ${opportunity.stage}, ${formatCurrency(opportunity.value, currency)}`}
     >
       <TableCell className={cn("font-medium", cellPadding)}>
         <div className="flex min-w-0 flex-col">
@@ -107,7 +107,7 @@ function OpportunityRow({ opportunity, compact }: { opportunity: Opportunity; co
       </TableCell>
 
       <TableCell className={cn("text-right text-[13px] font-semibold tabular", cellPadding)}>
-        {formatCurrency(opportunity.value)}
+        {formatCurrency(opportunity.value, currency)}
       </TableCell>
 
       <TableCell className={cn("hidden md:table-cell", cellPadding)}>

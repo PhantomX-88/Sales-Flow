@@ -20,6 +20,7 @@ export function KanbanBoard() {
     settings,
     clearAllFilters,
     openCreateDialog,
+    currency,
   } = usePipeline();
 
   const [draggingId, setDraggingId] = React.useState<string | null>(null);
@@ -121,7 +122,7 @@ export function KanbanBoard() {
                     </span>
                   </div>
                   <span className="shrink-0 text-2xs font-semibold tabular text-muted-foreground">
-                    {formatCurrencyCompact(total)}
+                    {formatCurrencyCompact(total, currency)}
                   </span>
                 </header>
 

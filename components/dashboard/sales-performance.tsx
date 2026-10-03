@@ -28,10 +28,11 @@ import { formatCurrency, formatCurrencyAxis, formatPercent } from "@/lib/utils";
 interface PerformanceTooltipProps {
   active?: boolean;
   label?: string | number;
+  currency: "NGN" | "USD";
   payload?: { dataKey?: string | number; value?: number; name?: string }[];
 }
 
-function PerformanceTooltip({ active, payload, label }: PerformanceTooltipProps) {
+function PerformanceTooltip({ active, payload, label, currency }: PerformanceTooltipProps) {
   if (!active || !payload?.length) return null;
 
   return (
@@ -41,7 +42,7 @@ function PerformanceTooltip({ active, payload, label }: PerformanceTooltipProps)
         {payload.map((entry) => (
           <div key={String(entry.dataKey)} className="flex items-center justify-between gap-4">
             <span className="text-2xs text-muted-foreground">{entry.name}</span>
-            <span className="text-xs font-semibold tabular">{formatCurrency(entry.value ?? 0)}</span>
+            <span className="text-xs font-semibold tabular">{formatCurrency(entry.value ?? 0, currency)}</span>
           </div>
         ))}
       </div>
@@ -49,7 +50,7 @@ function PerformanceTooltip({ active, payload, label }: PerformanceTooltipProps)
   );
 }
 
-function PerformanceTable({ reps }: { reps: RepPerformance[] }) {
+function PerformanceTable({ reps, currency }: { reps: RepPerformance[]; currency: "NGN" | "USD" }) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -77,10 +78,10 @@ function PerformanceTable({ reps }: { reps: RepPerformance[] }) {
                 </div>
               </TableCell>
               <TableCell className="px-3 py-2.5 text-right text-[13px] font-semibold tabular">
-                {formatCurrency(rep.pipeline)}
+                {formatCurrency(rep.pipeline, currency)}
               </TableCell>
               <TableCell className="px-3 py-2.5 text-right text-[13px] tabular text-emerald-600">
-                {formatCurrency(rep.won)}
+                {formatCurrency(rep.won, currency)}
               </TableCell>
               <TableCell className="px-3 py-2.5 text-right text-[13px] tabular">
                 {formatPercent(rep.winRate, 0)}
@@ -94,7 +95,7 @@ function PerformanceTable({ reps }: { reps: RepPerformance[] }) {
 }
 
 export function SalesPerformance({ className }: { className?: string }) {
-  const { repPerformance, isLoading } = usePipeline();
+  const { repPerformance, isLoading, currency } = usePipeline();
 
   const chartData = repPerformance.map((rep) => ({
     name: rep.name.split(" ")[0],
@@ -129,7 +130,7 @@ export function SalesPerformance({ className }: { className?: string }) {
                 <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#E2E8F0" />
                 <XAxis
                   type="number"
-                  tickFormatter={formatCurrencyAxis}
+                  tickFormatter={(value) => formatCurrencyAxis(value, currency)}
                   tickLine={false}
                   axisLine={false}
                   tick={{ fill: "#64748B", fontSize: 11 }}
@@ -142,7 +143,7 @@ export function SalesPerformance({ className }: { className?: string }) {
                   width={72}
                   tick={{ fill: "#0F172A", fontSize: 12 }}
                 />
-                <Tooltip content={<PerformanceTooltip />} cursor={{ fill: "#F1F5F9" }} />
+                <Tooltip content={<PerformanceTooltip currency={currency} />} cursor={{ fill: "#F1F5F9" }} />
                 <Bar dataKey="pipeline" name="Pipeline" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={10} />
                 <Bar dataKey="won" name="Closed won" fill="#059669" radius={[0, 4, 4, 0]} barSize={10} />
               </BarChart>
@@ -150,7 +151,7 @@ export function SalesPerformance({ className }: { className?: string }) {
           </div>
 
           <div className="border-t border-border">
-            <PerformanceTable reps={repPerformance} />
+            <PerformanceTable reps={repPerformance} currency={currency} />
           </div>
         </>
       )}

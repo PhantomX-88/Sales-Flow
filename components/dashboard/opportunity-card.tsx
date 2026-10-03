@@ -16,7 +16,7 @@ interface OpportunityListCardProps {
 
 /** Mobile presentation of a table row — keeps every field and action reachable. */
 export function OpportunityListCard({ opportunity }: OpportunityListCardProps) {
-  const { openOpportunity, today } = usePipeline();
+  const { openOpportunity, today, currency } = usePipeline();
   const tone = closeDateTone(opportunity.expectedCloseDate, today);
 
   return (
@@ -41,7 +41,7 @@ export function OpportunityListCard({ opportunity }: OpportunityListCardProps) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="text-sm font-semibold tabular">{formatCurrency(opportunity.value)}</span>
+          <span className="text-sm font-semibold tabular">{formatCurrency(opportunity.value, currency)}</span>
           <OpportunityActions opportunity={opportunity} />
         </div>
       </div>
@@ -84,7 +84,7 @@ export function KanbanCard({
   onDragEnd,
   isDragging,
 }: KanbanCardProps) {
-  const { openOpportunity, today } = usePipeline();
+  const { openOpportunity, today, currency } = usePipeline();
   const tone = closeDateTone(opportunity.expectedCloseDate, today);
 
   return (
@@ -114,7 +114,7 @@ export function KanbanCard({
         <OpportunityActions opportunity={opportunity} />
       </div>
 
-      <p className="mt-2.5 text-sm font-semibold tabular">{formatCurrency(opportunity.value)}</p>
+      <p className="mt-2.5 text-sm font-semibold tabular">{formatCurrency(opportunity.value, currency)}</p>
 
       <div className="mt-2 space-y-1.5">
         <div className="flex items-center justify-between text-2xs text-muted-foreground">

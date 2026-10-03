@@ -75,9 +75,9 @@ interface SidebarContentProps {
 
 export function SidebarContent({ activeView, onNavigate, className }: SidebarContentProps) {
   const sections = useNavSections();
-  const { forecast, filtered, exportCsv, updateFilter, setView, ownerNames } =
+  const { forecast, filtered, exportCsv, updateFilter, setView, ownerNames, currency } =
     usePipeline();
-  const { signOut } = useAuth();
+  const { signOut, membershipRole } = useAuth();
   const router = useRouter();
 
   const currentUser = ownerNames[0] ?? "Emmanuel A.";
@@ -149,10 +149,10 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
             <span className="tabular text-foreground">{formatPercent(attainment, 0)}</span>
           </div>
           <p className="mt-2 text-sm font-semibold tabular">
-            {formatCurrencyCompact(forecast.closedRevenue)}
+            {formatCurrencyCompact(forecast.closedRevenue, currency)}
             <span className="text-muted-foreground">
               {" "}
-              / {formatCurrencyCompact(forecast.quarterlyTarget)}
+              / {formatCurrencyCompact(forecast.quarterlyTarget, currency)}
             </span>
           </p>
           <Progress
@@ -164,7 +164,7 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
           />
           <p className="mt-2 text-2xs text-muted-foreground">
             {forecast.status === "on-track" ? "Tracking to target" : "Behind target"} ·{" "}
-            {formatCurrencyCompact(forecast.gapToTarget)} to go
+            {formatCurrencyCompact(forecast.gapToTarget, currency)} to go
           </p>
         </div>
       </nav>
@@ -180,7 +180,9 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
               <OwnerAvatar name={currentUser} size="md" />
               <span className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-[13px] font-semibold">{currentUser}</span>
-                <span className="truncate text-2xs text-muted-foreground">Sales Manager</span>
+                <span className="truncate text-2xs text-muted-foreground">
+                  {membershipRole ? membershipRole.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ") : "Member"}
+                </span>
               </span>
               <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             </button>

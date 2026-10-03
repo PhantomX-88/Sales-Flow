@@ -262,6 +262,20 @@ Read-only access to permitted information.
 
 ---
 
+# Organization Onboarding (Phase 1)
+
+The authenticated application uses `organizations` and `organization_members` as its tenant boundary. Existing workspaces are migrated to organizations by preserving their IDs where possible; opportunity and activity records receive the mapped `organization_id`. Existing workspace creators become active owners, and legacy `member` memberships map to `sales_rep`.
+
+Organization setup collects company name, industry, country, unique lowercase tag, expected sub-user count, revenue target and currency, target period, expected deals per month, average deal size, team type, and enabled optional features. Tags are 3-20 lowercase letters, numbers, or hyphens and are unique case-insensitively. Owners can edit these values in Settings. The Features step can be skipped and revisited later.
+
+The onboarding and Settings writes use the `save_organization_setup` security-definer RPC. Tag availability is checked by `is_organization_tag_available`; the unique index remains authoritative under concurrent requests. Organization setup changes are recorded in `audit_log`. Organization RLS is active. Until the later sub-user-permission phase is implemented, CRM table reads and writes are owner-only.
+
+Before using this phase against a hosted database, run the current `supabase/schema.sql` in the Supabase SQL Editor. The migration aborts if it finds unmapped records, duplicate active organization memberships, organizations without an active owner, or conflicting tags; resolve those rows before rerunning it. Do not apply an earlier copy of the schema.
+
+Current role values are `owner`, `sales_rep`, `admin`, `sales_manager`, and `viewer`. Only `owner` and `sales_rep` are used by the new organization flow; the other existing roles are preserved for later phases.
+
+---
+
 # Development
 
 ## Requirements

@@ -216,6 +216,7 @@ export function computeKpis(
   opportunities: Opportunity[],
   monthlyRevenue: MonthlyRevenuePoint[],
   today: string,
+  currency: "NGN" | "USD" = "USD",
 ): KpiMetric[] {
   const metrics = computeMetrics(opportunities, today);
   const open = opportunities.filter(isOpen);
@@ -265,24 +266,24 @@ export function computeKpis(
     {
       id: "pipeline-value",
       label: "Pipeline value",
-      value: formatCurrencyCompact(metrics.pipelineValue),
+      value: formatCurrencyCompact(metrics.pipelineValue, currency),
       supporting: `${pluralize(metrics.openCount, "open opportunity")} in play`,
       trend:
         pipelineTrend === null
           ? null
           : { value: pipelineTrend, kind: "percent", label: "vs previous month" },
-      footnote: `Avg deal size ${formatCurrency(Math.round(metrics.averageDealSize))}`,
+      footnote: `Avg deal size ${formatCurrency(Math.round(metrics.averageDealSize), currency)}`,
     },
     {
       id: "weighted-forecast",
       label: "Weighted forecast",
-      value: formatCurrencyCompact(metrics.weightedForecast),
+      value: formatCurrencyCompact(metrics.weightedForecast, currency),
       supporting: "at current probability",
       trend:
         weightedTrend === null
           ? null
           : { value: weightedTrend, kind: "percent", label: "vs previous month" },
-      footnote: `${formatCurrencyCompact(metrics.wonValue)} closed won to date`,
+      footnote: `${formatCurrencyCompact(metrics.wonValue, currency)} closed won to date`,
     },
     {
       id: "open-opportunities",
@@ -350,7 +351,11 @@ export function computeAccounts(opportunities: Opportunity[], today: string): Ac
     .sort((a, b) => b.openValue + b.wonValue - (a.openValue + a.wonValue));
 }
 
-export function computeTasks(opportunities: Opportunity[], today: string): TaskItem[] {
+export function computeTasks(
+  opportunities: Opportunity[],
+  today: string,
+  currency: "NGN" | "USD" = "USD",
+): TaskItem[] {
   const open = opportunities.filter(isOpen);
   const tasks: TaskItem[] = [];
 
@@ -361,7 +366,7 @@ export function computeTasks(opportunities: Opportunity[], today: string): TaskI
       tasks.push({
         id: `${opportunity.id}-overdue`,
         title: `Close date passed for ${opportunity.company}`,
-        detail: `${formatCurrency(opportunity.value)} · expected ${opportunity.expectedCloseDate}`,
+        detail: `${formatCurrency(opportunity.value, currency)} · expected ${opportunity.expectedCloseDate}`,
         dueLabel: `${Math.abs(daysToClose)} ${pluralize(Math.abs(daysToClose), "day")} overdue`,
         tone: "danger",
         opportunityId: opportunity.id,
@@ -370,7 +375,7 @@ export function computeTasks(opportunities: Opportunity[], today: string): TaskI
       tasks.push({
         id: `${opportunity.id}-closing`,
         title: `Confirm next steps with ${opportunity.company}`,
-        detail: `${formatCurrency(opportunity.value)} · closes in ${daysToClose} ${pluralize(daysToClose, "day")}`,
+        detail: `${formatCurrency(opportunity.value, currency)} · closes in ${daysToClose} ${pluralize(daysToClose, "day")}`,
         dueLabel: `Due in ${daysToClose} ${pluralize(daysToClose, "day")}`,
         tone: "warning",
         opportunityId: opportunity.id,

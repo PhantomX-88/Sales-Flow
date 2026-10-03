@@ -87,6 +87,7 @@ export function OpportunityDetailDrawer() {
     activities,
     addActivity,
     today,
+    currency,
   } = usePipeline();
 
   const [isLoggingActivity, setLoggingActivity] = React.useState(false);
@@ -128,7 +129,7 @@ export function OpportunityDetailDrawer() {
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <span className="text-[22px] font-bold leading-none tracking-tight tabular">
-                    {formatCurrency(opportunity.value)}
+                    {formatCurrency(opportunity.value, currency)}
                   </span>
                   <StageBadge stage={opportunity.stage} />
                 </div>

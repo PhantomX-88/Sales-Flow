@@ -99,7 +99,7 @@ export function OpportunityFormDialog({
   onOpenChange,
   opportunity = null,
 }: OpportunityFormDialogProps) {
-  const { createOpportunity, updateOpportunity, ownerNames, metadata } = usePipeline();
+  const { createOpportunity, updateOpportunity, ownerNames, metadata, currency } = usePipeline();
   const isEdit = Boolean(opportunity);
   const [draft, setDraft] = React.useState<OpportunityDraft>(() => emptyDraft(ownerNames[0] ?? ""));
   const [errors, setErrors] = React.useState<FieldErrors>({});
@@ -224,7 +224,7 @@ export function OpportunityFormDialog({
               />
             </Field>
 
-            <Field label="Deal value (USD) *" htmlFor="opp-value" error={errors.value}>
+            <Field label={`Deal value (${currency}) *`} htmlFor="opp-value" error={errors.value}>
               <Input
                 id="opp-value"
                 inputMode="numeric"

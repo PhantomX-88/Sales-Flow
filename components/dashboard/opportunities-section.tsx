@@ -43,6 +43,7 @@ export function OpportunitiesSection() {
     rangeStart,
     rangeEnd,
     isLoading,
+    currency,
   } = usePipeline();
 
   const handleViewChange = (value: string) => {
@@ -58,7 +59,7 @@ export function OpportunitiesSection() {
           </h2>
           <p className="text-[13px] text-muted-foreground">
             {totalFiltered} {pluralize(totalFiltered, "opportunity", "opportunities")} matching
-            current filters · {formatCurrencyCompact(metrics.pipelineValue)} open pipeline ·{" "}
+            current filters · {formatCurrencyCompact(metrics.pipelineValue, currency)} open pipeline ·{" "}
             {metrics.overdueCount} overdue
           </p>
         </div>

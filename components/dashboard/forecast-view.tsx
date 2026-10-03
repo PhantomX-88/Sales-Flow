@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { formatCurrency, formatPercent, pluralize } from "@/lib/utils";
 
 export function ForecastView() {
-  const { forecast, metrics, metadata } = usePipeline();
+  const { forecast, metrics, metadata, currency } = usePipeline();
 
   return (
     <div className="space-y-6">
@@ -28,7 +28,7 @@ export function ForecastView() {
             Open pipeline
           </p>
           <p className="mt-1 text-[22px] font-bold leading-none tabular">
-            {formatCurrency(metrics.pipelineValue)}
+            {formatCurrency(metrics.pipelineValue, currency)}
           </p>
           <p className="mt-2 text-2xs text-muted-foreground">
             {metrics.openCount} {pluralize(metrics.openCount, "open deal")}
@@ -44,7 +44,7 @@ export function ForecastView() {
               : "Target met"}
           </p>
           <p className="mt-2 text-2xs text-muted-foreground">
-            Weighted pipeline vs {formatCurrency(forecast.gapToTarget)} remaining gap
+            Weighted pipeline vs {formatCurrency(forecast.gapToTarget, currency)} remaining gap
           </p>
         </Card>
         <Card className="p-5">

@@ -36,6 +36,11 @@ interface SearchFieldProps {
   showShortcutHint?: boolean;
 }
 
+function roleLabel(role: string | null) {
+  if (!role) return "Member";
+  return role.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
+}
+
 function SearchField({ inputRef, className, showShortcutHint }: SearchFieldProps) {
   const { searchQuery, setSearchQuery, totalFiltered, setView, view } = usePipeline();
 
@@ -99,7 +104,7 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   } = usePipeline();
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { signOut, organization, membershipRole } = useAuth();
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -134,6 +139,16 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           showShortcutHint
           className="hidden max-w-md flex-1 md:block"
         />
+
+        {organization?.tag ? (
+          <span
+            title={organization.name}
+            aria-label={`Company tag ${organization.tag}`}
+            className="max-w-[5.5rem] truncate rounded-md border border-border bg-muted px-1.5 py-1 text-[11px] font-semibold text-muted-foreground sm:max-w-none sm:px-2 sm:text-xs"
+          >
+            {organization.tag}
+          </span>
+        ) : null}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <NotificationMenu />
@@ -170,7 +185,7 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[15rem]">
-              <DropdownMenuLabel>{currentUser} · Sales Manager</DropdownMenuLabel>
+              <DropdownMenuLabel>{currentUser} · {roleLabel(membershipRole)}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
@@ -187,7 +202,7 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setView("settings")}>
                 <Settings />
-                Workspace settings
+                Organization settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

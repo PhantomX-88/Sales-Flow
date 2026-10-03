@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { formatCurrencyCompact, formatPercent, pluralize } from "@/lib/utils";
 
 function SummaryStrip() {
-  const { filtered } = usePipeline();
+  const { filtered, currency } = usePipeline();
 
   const stats = React.useMemo(() => {
     const value = filtered.reduce((total, opportunity) => total + opportunity.value, 0);
@@ -26,8 +26,8 @@ function SummaryStrip() {
 
   const items = [
     { label: "Deals in view", value: String(filtered.length) },
-    { label: "Filtered value", value: formatCurrencyCompact(stats.value) },
-    { label: "Weighted value", value: formatCurrencyCompact(stats.weighted) },
+    { label: "Filtered value", value: formatCurrencyCompact(stats.value, currency) },
+    { label: "Weighted value", value: formatCurrencyCompact(stats.weighted, currency) },
     { label: "Avg probability", value: formatPercent(stats.averageProbability, 0) },
   ];
 

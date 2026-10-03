@@ -26,10 +26,11 @@ const CHART_COLORS = {
 interface ChartTooltipProps {
   active?: boolean;
   label?: string | number;
+  currency: "NGN" | "USD";
   payload?: { dataKey?: string | number; value?: number; name?: string }[];
 }
 
-function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
+function ChartTooltip({ active, payload, label, currency }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
 
   return (
@@ -50,7 +51,7 @@ function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
               {entry.name}
             </span>
             <span className="text-xs font-semibold tabular text-foreground">
-              {formatCurrency(entry.value ?? 0)}
+              {formatCurrency(entry.value ?? 0, currency)}
             </span>
           </div>
         ))}
@@ -66,7 +67,7 @@ const RANGE_SLICES: Record<ChartRangeKey, { months: number; offset: number; labe
 };
 
 export function PipelineChart({ className }: { className?: string }) {
-  const { monthlyRevenue, chartRange, isLoading } = usePipeline();
+  const { monthlyRevenue, chartRange, isLoading, currency } = usePipeline();
 
   const data = React.useMemo(() => {
     const slice = RANGE_SLICES[chartRange];
@@ -117,14 +118,14 @@ export function PipelineChart({ className }: { className?: string }) {
             <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
               Pipeline
             </p>
-            <p className="text-sm font-semibold tabular">{formatCurrencyCompact(totals.pipeline)}</p>
+            <p className="text-sm font-semibold tabular">{formatCurrencyCompact(totals.pipeline, currency)}</p>
           </div>
           <div>
             <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
               Closed
             </p>
             <p className="text-sm font-semibold tabular text-emerald-600">
-              {formatCurrencyCompact(totals.won)}
+              {formatCurrencyCompact(totals.won, currency)}
             </p>
           </div>
           <div>
@@ -149,14 +150,14 @@ export function PipelineChart({ className }: { className?: string }) {
                 tick={{ fill: "#64748B", fontSize: 12 }}
               />
               <YAxis
-                tickFormatter={formatCurrencyAxis}
+                tickFormatter={(value) => formatCurrencyAxis(value, currency)}
                 tickLine={false}
                 axisLine={false}
                 width={56}
                 tick={{ fill: "#64748B", fontSize: 12 }}
               />
               <Tooltip
-                content={<ChartTooltip />}
+                content={<ChartTooltip currency={currency} />}
                 cursor={{ stroke: "#CBD5E1", strokeWidth: 1, strokeDasharray: "4 4" }}
               />
               <Legend
