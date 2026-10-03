@@ -95,6 +95,7 @@ alter table public.activities
 create table if not exists public.organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  slug text not null,
   tag text,
   industry text not null default '',
   country text not null default '',
@@ -114,6 +115,7 @@ create table if not exists public.organizations (
 
 alter table public.organizations
   add column if not exists name text,
+  add column if not exists slug text,
   add column if not exists tag text,
   add column if not exists industry text not null default '',
   add column if not exists country text not null default '',
@@ -129,6 +131,18 @@ alter table public.organizations
   add column if not exists created_by uuid references auth.users(id) on delete set null,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
+
+update public.organizations
+set slug = coalesce(
+  nullif(btrim(slug), ''),
+  coalesce(
+    nullif(trim(both '-' from regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g')), ''),
+    'org'
+  ) || '-' || replace(id::text, '-', '')
+)
+where slug is null or btrim(slug) = '';
+
+alter table public.organizations alter column slug set not null;
 
 create table if not exists public.organization_members (
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -224,8 +238,14 @@ begin
     w.id
   );
 
-  insert into public.organizations (id, name, created_by)
-  select w.organization_id, w.name, w.created_by
+  insert into public.organizations (id, name, slug, created_by)
+  select w.organization_id,
+         w.name,
+         coalesce(
+           nullif(trim(both '-' from regexp_replace(lower(w.name), '[^a-z0-9]+', '-', 'g')), ''),
+           'org'
+         ) || '-' || replace(w.organization_id::text, '-', ''),
+         w.created_by
   from public.workspaces w
   on conflict (id) do nothing;
 
@@ -490,6 +510,7 @@ set search_path = public
 as $$
 declare
   saved_organization_id uuid;
+  organization_slug text;
   setup_action text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
@@ -520,16 +541,22 @@ begin
     ) then
       raise exception 'You already belong to an active organization.';
     end if;
+    saved_organization_id := gen_random_uuid();
+    organization_slug := coalesce(
+      nullif(trim(both '-' from regexp_replace(lower(trim(setup_name)), '[^a-z0-9]+', '-', 'g')), ''),
+      'org'
+    ) || '-' || replace(saved_organization_id::text, '-', '');
     insert into public.organizations (
-      name, tag, industry, country, expected_sub_users, revenue_target, currency,
+      id, name, slug, tag, industry, country, expected_sub_users, revenue_target, currency,
       target_period, expected_transactions_per_month, average_deal_size, team_type,
       enabled_features, onboarding_completed, created_by
     ) values (
-      trim(setup_name), setup_tag, trim(setup_industry), trim(setup_country),
+      saved_organization_id, trim(setup_name), organization_slug, setup_tag,
+      trim(setup_industry), trim(setup_country),
       setup_expected_sub_users, setup_revenue_target, setup_currency, setup_target_period,
       setup_expected_transactions_per_month, setup_average_deal_size, setup_team_type,
       coalesce(setup_enabled_features, '{}'), true, auth.uid()
-    ) returning id into saved_organization_id;
+    );
 
     insert into public.organization_members (organization_id, user_id, role, status)
     values (saved_organization_id, auth.uid(), 'owner', 'active');
