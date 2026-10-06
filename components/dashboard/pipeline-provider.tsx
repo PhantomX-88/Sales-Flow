@@ -223,6 +223,7 @@ function fromOpportunityRow(row: Record<string, unknown>): Opportunity {
     value: Number(row.value),
     probability: Number(row.probability),
     owner: String(row.owner),
+    ownerId: row.owner_id ? String(row.owner_id) : undefined,
     age: Number(row.age),
     expectedCloseDate: String(row.expected_close_date),
     createdDate: String(row.created_date),

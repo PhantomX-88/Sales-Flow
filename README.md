@@ -276,6 +276,58 @@ Current role values are `owner`, `sales_rep`, `admin`, `sales_manager`, and `vie
 
 ---
 
+# Team Management & Invitations (Phase 2)
+
+## Roles
+
+| Role | Who | Access |
+| --- | --- | --- |
+| `owner` | Super admin; the organization's first user | Full org data, Team page, invitations, member management |
+| `sales_rep` | Invited sub-user | Only their own opportunities, activities and personal target |
+| `admin` / `sales_manager` / `viewer` | Reserved for later phases | Present in the schema, currently unused |
+
+## Rules enforced in Postgres (never UI-only)
+
+* Every business table carries `organization_id`; RLS scopes every query to the caller's organization.
+* One active organization per user (`organization_members_one_active_org_per_user_uidx`).
+* An organization can never lose its last active owner — enforced by the `set_member_status` RPC **and** the `organization_members_last_owner_guard` trigger (which also blocks direct/service-role writes).
+* `opportunities.owner_id` and `created_by` are filled by the `opportunities_ownership_guard` trigger. `organization_id` and `created_by` are immutable, `owner_id` cannot be cleared, and only an owner may reassign `owner_id`. The legacy `owner` display text is kept in sync automatically.
+* Invitations: a raw 32-byte token is **never stored** — only its SHA-256 hash (`invitations.token_hash`). One pending invitation per `(organization, email)`. The role is always read from the invitation row (`role = 'sales_rep'` is a CHECK constraint); it never comes from the client. Clients have SELECT-only access; all writes go through server routes or RPCs.
+* `accept_invitation(raw_token)` (SECURITY DEFINER) locks the row with `SELECT ... FOR UPDATE`, then validates: status `pending`, not expired, `auth.jwt()` email equals the invited email, and no active membership in another organization. It then atomically creates the membership (role from the row), creates the personal `sales_targets` row, marks the invitation accepted and writes `audit_log`. Re-accepting as the same user is idempotent; any other user is rejected by the email check, so a used token cannot grant access twice. Two simultaneous accepts serialize on the row lock — exactly one succeeds.
+* Deactivating a member revokes access immediately (all RLS helper functions require `status = 'active'`). Their records stay; they can be reactivated later.
+* Rate limits: 20 invitations per organization per hour; 1 initial send + 3 resends per invitation. Every resend rotates the token, so the previous link dies instantly.
+
+## Server routes (the only service-role consumers)
+
+| Route | Purpose |
+| --- | --- |
+| `POST /api/team/invite` | Verify caller is an active owner, create + email the invitation |
+| `POST /api/team/resend` | Rotate token, extend expiry by 7 days, re-email (max 3 resends) |
+| `POST /api/team/revoke` | Kill a pending invitation immediately |
+| `GET /api/invite/lookup?token=` | Public token validation for the `/accept-invite` screen |
+
+## Environment variables
+
+| Variable | Where | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | client + server | existing |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | client + server | existing |
+| `SUPABASE_SERVICE_ROLE_KEY` | **server only** — never `NEXT_PUBLIC_` | used by the routes above; each route verifies the caller is an active owner first |
+| `SITE_URL` | server | base URL for invitation links (e.g. `https://sales-flow-ruby.vercel.app`) |
+| `RESEND_API_KEY` | server | invitation email delivery (optional in local dev — the accept link is returned in the API response instead) |
+| `RESEND_FROM` | server (optional) | sender identity; defaults to `SalesFlow <onboarding@resend.dev>` (Resend test sender — configure a real verified domain for production) |
+
+## Manual setup checklist
+
+1. **Email deliverability**: Resend (or SMTP) with a verified sending domain and healthy DNS — SPF, DKIM and DMARC — so invitations land in Gmail, Yahoo and corporate inboxes instead of spam.
+2. **Env vars** on Vercel *and* locally in `.env.local`: `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY` (or SMTP equivalent), `SITE_URL`, `RESEND_FROM`.
+3. **Supabase Auth → URL Configuration**: add `http://localhost:3000/accept-invite` and `https://your-domain/accept-invite` as redirect URLs so email confirmation returns users to the invitation with the same token.
+4. **Scheduled job** (pg_cron or Vercel Cron): run `select expire_stale_invitations();` nightly (invite expiry) — the accept path and invite routes also sweep on read, so this is a safety net. The 30-day soft-delete purge arrives with Phase 5.
+5. **Run the tests**: `supabase/tests/phase2-tests.sql` in the SQL Editor (expect `ALL PHASE 2 TESTS PASSED`), then `node --test tests/invite-api.test.mjs` with `TEST_OWNER_TOKEN` and `TEST_ORG_ID` set while `npm run dev` runs.
+6. **Two-tab concurrency check**: open the same accept link in two browsers signed in as the invited user — exactly one accept should succeed; the other sees an idempotent success or an "already been used" error.
+
+---
+
 # Development
 
 ## Requirements
@@ -435,6 +487,8 @@ The interface should adapt to the available screen size without creating complet
 
 # Product Roadmap
 
+> **Verification note:** Checked items were verified against the codebase and `supabase/schema.sql`. Phases 3–5 progressed ahead of Phase 2 because the prototype was migrated to Supabase before hosting was set up. "Roles and permissions" remains open: all five role values exist, but CRM access is currently owner-only until the sub-user permission phase ships. External steps (Supabase project creation, Vercel deployment) are checked only when confirmed.
+
 ## Phase 1 - Code Ownership
 
 * [x] Build application
@@ -453,27 +507,27 @@ The interface should adapt to the available screen size without creating complet
 ## Phase 3 - Cloud Database
 
 * [ ] Create Supabase project
-* [ ] Create production PostgreSQL schema
-* [ ] Configure Row Level Security
-* [ ] Connect application to Supabase
-* [ ] Replace local/mock data
+* [x] Create production PostgreSQL schema
+* [x] Configure Row Level Security
+* [x] Connect application to Supabase
+* [x] Replace local/mock data
 
 ## Phase 4 - Authentication
 
-* [ ] Registration
-* [ ] Login
-* [ ] Logout
-* [ ] Password reset
-* [ ] Email verification
-* [ ] Protected routes
+* [x] Registration
+* [x] Login
+* [x] Logout
+* [x] Password reset
+* [x] Email verification
+* [x] Protected routes
 
 ## Phase 5 - Multi-Tenant SaaS
 
-* [ ] Organizations
-* [ ] Organization members
+* [x] Organizations
+* [x] Organization members
 * [ ] Roles and permissions
-* [ ] Organization-level data isolation
-* [ ] Team management
+* [x] Organization-level data isolation
+* [x] Team management
 
 ## Phase 6 - Commercial SaaS
 

@@ -23,6 +23,11 @@ export interface Opportunity {
   value: number;
   probability: number;
   owner: string;
+  /**
+   * Authoritative owner (organization_members.user_id). The `owner` text is a
+   * legacy display column kept in sync by a Postgres trigger.
+   */
+  ownerId?: string;
   /** Days since the opportunity was created, kept in sync with `createdDate`. */
   age: number;
   expectedCloseDate: string;
@@ -236,6 +241,7 @@ export type DashboardView =
   | "activities"
   | "forecast"
   | "tasks"
+  | "team"
   | "settings";
 
 export interface OpportunityDraft {

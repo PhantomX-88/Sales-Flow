@@ -16,6 +16,7 @@ import {
   Trash2,
   TrendingUp,
   UserRound,
+  Users,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth/auth-provider";
@@ -45,6 +46,8 @@ export const SIDEBAR_WIDTH = 260;
 
 function useNavSections(): { label: string; items: NavItem[] }[] {
   const { tasks } = usePipeline();
+  const { membershipRole } = useAuth();
+  const isOwner = membershipRole === "owner";
 
   return [
     {
@@ -61,6 +64,7 @@ function useNavSections(): { label: string; items: NavItem[] }[] {
       label: "Management",
       items: [
         { key: "tasks", label: "Tasks", icon: ListChecks, badge: tasks.length },
+        ...(isOwner ? [{ key: "team" as const, label: "Team", icon: Users }] : []),
         { key: "settings", label: "Settings", icon: Settings },
       ],
     },

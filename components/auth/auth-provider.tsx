@@ -16,7 +16,7 @@ interface AuthContextValue {
   checkOrganizationTag: (tag: string, excludeOrganizationId?: string | null) => Promise<{ available: boolean; error: string | null }>;
   saveOrganizationSetup: (details: OrganizationSetupDetails, organizationId?: string | null) => Promise<{ organizationId: string | null; error: string | null }>;
   signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (fullName: string, email: string, password: string) => Promise<{
+  signUp: (fullName: string, email: string, password: string, emailRedirectTo?: string) => Promise<{
     error: string | null;
     needsEmailConfirmation: boolean;
   }>;
@@ -162,11 +162,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   }, [resolveOrganization]);
 
-  const signUp = React.useCallback(async (fullName: string, email: string, password: string) => {
+  const signUp = React.useCallback(async (fullName: string, email: string, password: string, emailRedirectTo?: string) => {
     const { data, error } = await getSupabaseClient().auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        ...(emailRedirectTo ? { emailRedirectTo } : {}),
+        data: { full_name: fullName },
+      },
     });
     if (data.session?.user) {
       setDisplayName(data.session.user.user_metadata.full_name || data.session.user.email || null);

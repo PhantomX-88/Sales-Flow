@@ -13,6 +13,7 @@ import { PipelineProvider, usePipeline } from "@/components/dashboard/pipeline-p
 import { SettingsView } from "@/components/dashboard/settings-view";
 import { SIDEBAR_WIDTH, Sidebar, SidebarContent } from "@/components/dashboard/sidebar";
 import { TasksView } from "@/components/dashboard/tasks-view";
+import { TeamView } from "@/components/dashboard/team-view";
 import { Topbar } from "@/components/dashboard/topbar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -31,6 +32,8 @@ function ViewRouter() {
       return <ForecastView />;
     case "tasks":
       return <TasksView />;
+    case "team":
+      return <TeamView />;
     case "settings":
       return <SettingsView />;
     case "overview":
