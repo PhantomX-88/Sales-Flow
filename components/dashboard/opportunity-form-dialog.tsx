@@ -104,12 +104,18 @@ export function OpportunityFormDialog({
   const [draft, setDraft] = React.useState<OpportunityDraft>(() => emptyDraft(ownerNames[0] ?? ""));
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [probabilityTouched, setProbabilityTouched] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+  const submitLock = React.useRef(false);
 
   React.useEffect(() => {
     if (!open) return;
     setDraft(opportunity ? draftFromOpportunity(opportunity) : emptyDraft(ownerNames[0] ?? ""));
     setErrors({});
     setProbabilityTouched(false);
+    setIsSaving(false);
+    setSubmitError(null);
+    submitLock.current = false;
   }, [open, opportunity, ownerNames]);
 
   const update = <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) => {
@@ -155,14 +161,25 @@ export function OpportunityFormDialog({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitLock.current) return;
     const nextErrors = validate();
     setErrors(nextErrors);
     if (Object.values(nextErrors).some(Boolean)) return;
 
-    const saved = isEdit && opportunity
-      ? await updateOpportunity(opportunity.id, draft)
-      : await createOpportunity(draft);
-    if (saved) onOpenChange(false);
+    submitLock.current = true;
+    setIsSaving(true);
+    setSubmitError(null);
+    try {
+      const saved = isEdit && opportunity
+        ? await updateOpportunity(opportunity.id, draft)
+        : await createOpportunity(draft);
+      if (saved) onOpenChange(false);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "The opportunity could not be saved.");
+    } finally {
+      submitLock.current = false;
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -318,11 +335,15 @@ export function OpportunityFormDialog({
             />
           </Field>
 
+          {submitError ? <p role="alert" className="text-sm text-destructive">{submitError}</p> : null}
+
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" disabled={isSaving} onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">{isEdit ? "Save changes" : "Create opportunity"}</Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? "Saving..." : isEdit ? "Save changes" : "Create opportunity"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

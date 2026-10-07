@@ -108,10 +108,14 @@ export function InviteDialog({ open, onOpenChange, organizationId, onInvited }: 
               <DialogTitle>Invitation created</DialogTitle>
               <DialogDescription>
                 An invitation for <span className="font-medium text-foreground">{invitedEmail}</span>{" "}
-                {result.emailSent ? "has been emailed." : "was created, but email is not configured."}
+                {result.emailSent ? "has been emailed." : "was created, but the email was not sent."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                The member account is created when the invitee opens this link, signs up or signs in, and accepts.
+                They will appear in Members after acceptance.
+              </p>
               <Label htmlFor="invite-link">Invitation link</Label>
               <div className="flex gap-2">
                 <Input id="invite-link" readOnly value={result.acceptUrl ?? ""} className="text-xs" />

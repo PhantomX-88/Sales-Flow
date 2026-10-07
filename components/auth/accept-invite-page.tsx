@@ -113,15 +113,20 @@ export function AcceptInvitePage() {
       }
       setPending(true);
       setFormError(null);
-      // Confirmation link returns to this exact page with the same token.
-      const redirect = `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`;
-      const result = await signUp(fullName.trim(), lookup.info.email, password, redirect);
-      setPending(false);
-      if (result.error) {
-        setFormError(result.error);
-        return;
+      try {
+        // Confirmation link returns to this exact page with the same token.
+        const redirect = `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`;
+        const result = await signUp(fullName.trim(), lookup.info.email, password, redirect);
+        if (result.error) {
+          setFormError(result.error);
+          return;
+        }
+        if (result.needsEmailConfirmation) setConfirmSent(true);
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : "Could not create your account.");
+      } finally {
+        setPending(false);
       }
-      if (result.needsEmailConfirmation) setConfirmSent(true);
     },
     [lookup, fullName, password, signUp, token],
   );
@@ -136,9 +141,14 @@ export function AcceptInvitePage() {
       }
       setPending(true);
       setFormError(null);
-      const error = await signIn(lookup.info.email, password);
-      setPending(false);
-      if (error) setFormError(error);
+      try {
+        const error = await signIn(lookup.info.email, password);
+        if (error) setFormError(error);
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : "Could not sign in.");
+      } finally {
+        setPending(false);
+      }
     },
     [lookup, password, signIn],
   );
@@ -146,19 +156,23 @@ export function AcceptInvitePage() {
   const handleAccept = useCallback(async () => {
     setPending(true);
     setAcceptError(null);
-    const { error } = await getSupabaseClient().rpc("accept_invitation", { raw_token: token });
-    if (error) {
-      setAcceptError(error.message);
+    try {
+      const { error } = await getSupabaseClient().rpc("accept_invitation", { raw_token: token });
+      if (error) {
+        setAcceptError(error.message);
+        return;
+      }
+      const resolved = await resolveOrganization();
+      if (resolved.error) {
+        setAcceptError(resolved.error);
+        return;
+      }
+      router.replace("/dashboard");
+    } catch (error) {
+      setAcceptError(error instanceof Error ? error.message : "Could not accept this invitation.");
+    } finally {
       setPending(false);
-      return;
     }
-    const resolved = await resolveOrganization();
-    if (resolved.error) {
-      setAcceptError(resolved.error);
-      setPending(false);
-      return;
-    }
-    router.replace("/dashboard");
   }, [token, resolveOrganization, router]);
 
   const info = lookup.kind === "valid" ? lookup.info : null;
