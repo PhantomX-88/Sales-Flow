@@ -495,13 +495,19 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       const previousStage = existing.stage;
       const updated = draftToOpportunity(draft, TODAY, id, existing);
       const stageChanged = updated.stage !== previousStage;
-      const { error } = await getSupabaseClient()
+      const { data: saved, error } = await getSupabaseClient()
         .from("opportunities")
         .update(toOpportunityRow(updated, organizationId))
         .eq("id", id)
-        .eq("organization_id", organizationId);
-      if (error) {
-        toast({ title: "Opportunity could not be updated.", description: error.message, variant: "destructive" });
+        .eq("organization_id", organizationId)
+        .select("id, stage")
+        .maybeSingle();
+      if (error || saved?.stage !== updated.stage) {
+        toast({
+          title: "Opportunity could not be updated.",
+          description: error?.message ?? "The opportunity was not saved in the requested stage. Check your access and refresh the pipeline.",
+          variant: "destructive",
+        });
         return false;
       }
 
@@ -540,13 +546,19 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       const keepProbability = isProbabilityOverridden(existing) && !isClosedStage;
       const probability = isClosedStage ? defaultProbabilityFor(stage) : keepProbability ? existing.probability : defaultProbabilityFor(stage);
       const closedDate = isClosedStage ? existing.closedDate ?? TODAY : null;
-      const { error } = await getSupabaseClient()
+      const { data: saved, error } = await getSupabaseClient()
         .from("opportunities")
         .update({ stage, probability, last_activity: "Just now", closed_date: closedDate })
         .eq("id", id)
-        .eq("organization_id", organizationId);
-      if (error) {
-        toast({ title: "Stage could not be changed.", description: error.message, variant: "destructive" });
+        .eq("organization_id", organizationId)
+        .select("id, stage")
+        .maybeSingle();
+      if (error || saved?.stage !== stage) {
+        toast({
+          title: "Stage could not be changed.",
+          description: error?.message ?? "The opportunity was not updated. Check your access and refresh the pipeline.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -584,13 +596,19 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       if (!organizationId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === id);
       if (!existing || existing.stage === stage) return;
-      const { error } = await getSupabaseClient()
+      const { data: saved, error } = await getSupabaseClient()
         .from("opportunities")
         .update({ stage, probability: defaultProbabilityFor(stage), closed_date: TODAY, last_activity: "Just now" })
         .eq("id", id)
-        .eq("organization_id", organizationId);
-      if (error) {
-        toast({ title: "Opportunity could not be closed.", description: error.message, variant: "destructive" });
+        .eq("organization_id", organizationId)
+        .select("id, stage")
+        .maybeSingle();
+      if (error || saved?.stage !== stage) {
+        toast({
+          title: "Opportunity could not be closed.",
+          description: error?.message ?? "The opportunity was not updated. Check your access and refresh the pipeline.",
+          variant: "destructive",
+        });
         return;
       }
 
