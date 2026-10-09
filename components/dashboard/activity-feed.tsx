@@ -33,6 +33,7 @@ export const ACTIVITY_STYLES: Record<ActivityType, { icon: LucideIcon; className
   call: { icon: Phone, className: "bg-violet-50 text-violet-600" },
   email: { icon: Mail, className: "bg-cyan-50 text-cyan-600" },
   meeting: { icon: Users, className: "bg-teal-50 text-teal-600" },
+  "follow-up": { icon: CalendarCheck, className: "bg-lime-50 text-lime-700" },
 };
 
 interface ActivityFeedProps {

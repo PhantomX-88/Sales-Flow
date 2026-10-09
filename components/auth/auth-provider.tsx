@@ -12,6 +12,7 @@ interface AuthContextValue {
   organization: OrganizationProfile | null;
   membershipRole: string | null;
   displayName: string | null;
+  userId: string | null;
   resolveOrganization: () => Promise<{ organizationId: string | null; error: string | null }>;
   checkOrganizationTag: (tag: string, excludeOrganizationId?: string | null) => Promise<{ available: boolean; error: string | null }>;
   saveOrganizationSetup: (details: OrganizationSetupDetails, organizationId?: string | null) => Promise<{ organizationId: string | null; error: string | null }>;
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [organization, setOrganization] = React.useState<OrganizationProfile | null>(null);
   const [membershipRole, setMembershipRole] = React.useState<string | null>(null);
   const [displayName, setDisplayName] = React.useState<string | null>(null);
+  const [userId, setUserId] = React.useState<string | null>(null);
 
   const resolveOrganization = React.useCallback(async () => {
     try {
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const resolvedOrganizationId = membership?.organization_id ?? null;
       setOrganizationId(resolvedOrganizationId);
       setMembershipRole(membership?.role ?? null);
+      setUserId(userData.user.id);
       setDisplayName(userData.user.user_metadata.full_name || userData.user.email || null);
       setIsAuthenticated(true);
       if (!resolvedOrganizationId) {
@@ -142,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOrganization(null);
         setMembershipRole(null);
         setDisplayName(null);
+        setUserId(null);
       }
     });
 
@@ -172,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (data.session?.user) {
+      setUserId(data.session.user.id);
       setDisplayName(data.session.user.user_metadata.full_name || data.session.user.email || null);
       setOrganizationId(null);
       setOrganization(null);
@@ -247,6 +252,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         organization,
         membershipRole,
         displayName,
+        userId,
         resolveOrganization,
         checkOrganizationTag,
         saveOrganizationSetup,

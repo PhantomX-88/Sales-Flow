@@ -1202,39 +1202,34 @@ begin
   on conflict (organization_id, user_id)
   do update set role = excluded.role, status = 'active';
 
-  -- Personal target row. Some pre-existing databases also carry a legacy
-  -- target_period NOT NULL column without a default. The reconciliation
-  -- block above normally relaxes it, but include it dynamically when present
-  -- so this insert never fails with 23502 even on unrepaired tables.
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public'
-      and table_name = 'sales_targets'
-      and column_name = 'target_period'
-  ) then
-    execute
-      'insert into public.sales_targets (organization_id, user_id, target_amount, period, target_period, source) '
-      || 'values ($1, $2, $3, $4, $4, ''invitation'') '
-      || 'on conflict (organization_id, user_id) do update '
-      || 'set target_amount = excluded.target_amount, period = excluded.period, '
-      || 'target_period = excluded.target_period, source = ''invitation'', updated_at = now()'
-      using v_invitation.organization_id, caller_id,
-            v_invitation.personal_target, v_invitation.target_period;
-  else
-    insert into public.sales_targets (organization_id, user_id, target_amount, period, source)
-    values (
-      v_invitation.organization_id,
-      caller_id,
-      v_invitation.personal_target,
-      v_invitation.target_period,
-      'invitation'
-    )
-    on conflict (organization_id, user_id) do update
-    set target_amount = excluded.target_amount,
-        period = excluded.period,
-        source = 'invitation',
-        updated_at = now();
-  end if;
+  -- Personal target row. Legacy sales_targets tables may carry an extra
+  -- NOT NULL target_period column; patch-01 relaxes it so this plain
+  -- insert always works. No dynamic EXECUTE here on purpose — nested
+  -- dollar-quoted strings broke the SQL Editor (42601 rollback).
+  insert into public.sales_targets (organization_id, user_id, target_amount, period, source)
+  values (
+    v_invitation.organization_id,
+    caller_id,
+    v_invitation.personal_target,
+    v_invitation.target_period,
+    'invitation'
+  )
+  on conflict (organization_id, user_id) do update
+  set target_amount = excluded.target_amount,
+      period = excluded.period,
+      source = 'invitation',
+      updated_at = now();
+
+  -- Keep a legacy target_period column in sync when present; skipped at
+  -- runtime when the column does not exist.
+  begin
+    update public.sales_targets
+    set target_period = v_invitation.target_period
+    where organization_id = v_invitation.organization_id
+      and user_id = caller_id;
+  exception when undefined_column then
+    null;
+  end;
 
   update public.invitations
   set status = 'accepted', accepted_by = caller_id, accepted_at = now()
@@ -1396,5 +1391,114 @@ drop trigger if exists organization_members_last_owner_guard on public.organizat
 create trigger organization_members_last_owner_guard
   before update or delete on public.organization_members
   for each row execute procedure public.enforce_active_owner_exists();
+
+-- ============================================================
+-- PHASE 3 — Sub-user dashboard (member-scoped RLS) ------------
+-- ============================================================
+
+-- Activities: optional next step + due date drive reminders.
+alter table public.activities add column if not exists next_step text;
+alter table public.activities add column if not exists due_date date;
+
+-- Helper for activity policies: does the caller own this opportunity
+-- inside this organization (with active membership)? SECURITY DEFINER so
+-- the subquery never recurses through opportunities' own RLS policies.
+create or replace function public.owns_opportunity(
+  target_opportunity_id uuid,
+  target_organization_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.opportunities o
+    where o.id = target_opportunity_id
+      and o.organization_id = target_organization_id
+      and o.owner_id = auth.uid()
+      and exists (
+        select 1
+        from public.organization_members m
+        where m.organization_id = o.organization_id
+          and m.user_id = auth.uid()
+          and m.status = 'active'
+      )
+  );
+$$;
+
+revoke all on function public.owns_opportunity(uuid, uuid) from public, anon;
+grant execute on function public.owns_opportunity(uuid, uuid) to authenticated;
+
+-- Opportunities: owners act org-wide; sub-users only on their own rows.
+-- DELETE stays owner-only — sub-user deletion arrives in Phase 5 as an
+-- approval flow, never as a direct policy.
+drop policy if exists opportunities_owner_access on public.opportunities;
+drop policy if exists opportunities_select on public.opportunities;
+drop policy if exists opportunities_insert on public.opportunities;
+drop policy if exists opportunities_update on public.opportunities;
+drop policy if exists opportunities_delete on public.opportunities;
+
+create policy opportunities_select on public.opportunities
+  for select using (
+    public.is_organization_owner(organization_id)
+    or (owner_id = auth.uid() and public.is_organization_member(organization_id))
+  );
+
+create policy opportunities_insert on public.opportunities
+  for insert with check (
+    public.is_organization_owner(organization_id)
+    or (
+      public.is_organization_member(organization_id)
+      and (owner_id = auth.uid() or owner_id is null)
+    )
+  );
+
+create policy opportunities_update on public.opportunities
+  for update
+  using (
+    public.is_organization_owner(organization_id)
+    or (owner_id = auth.uid() and public.is_organization_member(organization_id))
+  )
+  with check (
+    public.is_organization_owner(organization_id)
+    or (
+      public.is_organization_member(organization_id)
+      and (owner_id = auth.uid() or owner_id is null)
+    )
+  );
+
+create policy opportunities_delete on public.opportunities
+  for delete using (public.is_organization_owner(organization_id));
+
+-- Activities: owners org-wide; sub-users only on opportunities they own.
+-- Activities without an opportunity are owner-only (ambiguous ownership).
+drop policy if exists activities_owner_access on public.activities;
+drop policy if exists activities_select on public.activities;
+drop policy if exists activities_insert on public.activities;
+drop policy if exists activities_update on public.activities;
+drop policy if exists activities_delete on public.activities;
+
+create policy activities_select on public.activities
+  for select using (
+    public.is_organization_owner(organization_id)
+    or public.owns_opportunity(opportunity_id, organization_id)
+  );
+
+create policy activities_insert on public.activities
+  for insert with check (
+    public.is_organization_owner(organization_id)
+    or public.owns_opportunity(opportunity_id, organization_id)
+  );
+
+create policy activities_update on public.activities
+  for update
+  using (public.is_organization_owner(organization_id))
+  with check (public.is_organization_owner(organization_id));
+
+create policy activities_delete on public.activities
+  for delete using (public.is_organization_owner(organization_id));
 
 notify pgrst, 'reload schema';

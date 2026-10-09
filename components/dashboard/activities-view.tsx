@@ -17,7 +17,7 @@ const FILTERS: { value: string; label: string; types: ActivityType[] | null }[] 
   { value: "all", label: "All", types: null },
   { value: "deals", label: "Deals", types: ["proposal", "won", "lost", "note"] },
   { value: "stage", label: "Stage moves", types: ["stage_change"] },
-  { value: "follow-ups", label: "Follow-ups", types: ["overdue", "lead", "call", "email", "meeting"] },
+  { value: "follow-ups", label: "Follow-ups", types: ["overdue", "lead", "call", "email", "meeting", "follow-up"] },
 ];
 
 export function ActivitiesView() {

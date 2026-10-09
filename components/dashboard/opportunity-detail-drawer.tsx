@@ -16,11 +16,13 @@ import {
   User,
 } from "lucide-react";
 
+import { useAuth } from "@/components/auth/auth-provider";
 import { OwnerAvatar } from "@/components/dashboard/owner-avatar";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { StageBadge } from "@/components/dashboard/stage-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -72,6 +74,7 @@ const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: "call", label: "Call" },
   { value: "email", label: "Email" },
   { value: "meeting", label: "Meeting" },
+  { value: "follow-up", label: "Follow-up" },
   { value: "proposal", label: "Proposal sent" },
 ];
 
@@ -89,16 +92,23 @@ export function OpportunityDetailDrawer() {
     today,
     currency,
   } = usePipeline();
+  const { membershipRole } = useAuth();
+  // Sub-users have no delete policy in RLS — hide the action entirely.
+  const canDelete = membershipRole === "owner";
 
   const [isLoggingActivity, setLoggingActivity] = React.useState(false);
   const [activityType, setActivityType] = React.useState<ActivityType>("note");
   const [activityText, setActivityText] = React.useState("");
+  const [activityNextStep, setActivityNextStep] = React.useState("");
+  const [activityDueDate, setActivityDueDate] = React.useState("");
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   React.useEffect(() => {
     setLoggingActivity(false);
     setActivityText("");
     setActivityType("note");
+    setActivityNextStep("");
+    setActivityDueDate("");
   }, [selectedOpportunity?.id]);
 
   const opportunity = selectedOpportunity;
@@ -277,15 +287,17 @@ export function OpportunityDetailDrawer() {
                       <CircleX className="h-3.5 w-3.5" />
                       Mark as Lost
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                      onClick={() => setConfirmDelete(true)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete
-                    </Button>
+                    {canDelete ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                        onClick={() => setConfirmDelete(true)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete
+                      </Button>
+                    ) : null}
                   </div>
 
                   {isLoggingActivity ? (
@@ -318,6 +330,26 @@ export function OpportunityDetailDrawer() {
                           placeholder={`e.g. Sent updated pricing to ${opportunity.contact}`}
                         />
                       </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="activity-next-step">Next step (optional)</Label>
+                          <Input
+                            id="activity-next-step"
+                            value={activityNextStep}
+                            onChange={(event) => setActivityNextStep(event.target.value)}
+                            placeholder="e.g. Send contract draft"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="activity-due-date">Due date (optional)</Label>
+                          <Input
+                            id="activity-due-date"
+                            type="date"
+                            value={activityDueDate}
+                            onChange={(event) => setActivityDueDate(event.target.value)}
+                          />
+                        </div>
+                      </div>
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="sm" onClick={() => setLoggingActivity(false)}>
                           Cancel
@@ -331,8 +363,14 @@ export function OpportunityDetailDrawer() {
                               activityType,
                               activityText.trim() ||
                                 `Activity logged for ${opportunity.company}`,
+                              {
+                                nextStep: activityNextStep.trim() || undefined,
+                                dueDate: activityDueDate || undefined,
+                              },
                             );
                             setActivityText("");
+                            setActivityNextStep("");
+                            setActivityDueDate("");
                             setLoggingActivity(false);
                           }}
                         >
@@ -364,6 +402,12 @@ export function OpportunityDetailDrawer() {
                           <p className="mt-0.5 text-2xs text-muted-foreground">
                             {activity.time} · {activity.type.replace("_", " ")}
                           </p>
+                          {activity.nextStep ? (
+                            <p className="mt-0.5 text-2xs text-primary">
+                              Next: {activity.nextStep}
+                              {activity.dueDate ? ` · due ${activity.dueDate}` : ""}
+                            </p>
+                          ) : null}
                         </li>
                       ))}
                     </ol>

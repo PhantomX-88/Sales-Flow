@@ -326,6 +326,27 @@ Current role values are `owner`, `sales_rep`, `admin`, `sales_manager`, and `vie
 5. **Run the tests**: `supabase/tests/phase2-tests.sql` in the SQL Editor (expect `ALL PHASE 2 TESTS PASSED`), then `node --test tests/invite-api.test.mjs` with `TEST_OWNER_TOKEN` and `TEST_ORG_ID` set while `npm run dev` runs.
 6. **Two-tab concurrency check**: open the same accept link in two browsers signed in as the invited user — exactly one accept should succeed; the other sees an idempotent success or an "already been used" error.
 
+## Phase 3 — Sub-user dashboard (member-scoped RLS)
+
+Visibility matrix, all enforced by Postgres policies (never UI-only):
+
+| Data | `owner` | `sales_rep` |
+| --- | --- | --- |
+| Opportunities (SELECT/UPDATE) | whole organization | only rows where `owner_id = auth.uid()` |
+| Opportunities (INSERT) | any owner in the org | only deals they own (trigger defaults `owner_id`/`created_by` to the caller) |
+| Opportunities (DELETE) | direct, instantly | **no policy** — Phase 5 adds the deletion-request flow |
+| Activities (SELECT/INSERT) | whole organization | only activities on opportunities they own (`owns_opportunity` helper) |
+| Activities (UPDATE/DELETE) | yes | no |
+| `sales_targets` (personal target) | all org rows | own row only |
+| `next_step` / `due_date` on activities | read/write | write on own deals; drives reminders |
+
+* `owns_opportunity(opportunity_id, organization_id)` is `SECURITY DEFINER` so policy subqueries never recurse through `opportunities` RLS.
+* The `opportunities_ownership_guard` trigger still blocks sub-users from changing `organization_id`, `created_by` or `owner_id` (defense in depth on top of RLS `WITH CHECK`).
+* The dashboard scopes sub-user queries with an explicit `owner_id = userId` filter (RLS enforces the same rule server-side), renders a **Personal target** progress card on Overview, logs optional **next step + due date** with each activity, folds due/overdue reminders into the Tasks view, and hides all Delete actions for non-owners.
+* Deactivating a sub-user removes access to deals, activities and targets immediately (verified by test 18).
+
+**Run order in the SQL Editor:** `patch-01-targets-relax.sql` → `patch-02-accept-invitation.sql` → `schema.sql` (full, or at minimum the `PHASE 3` section) → `tests/phase2-tests.sql` → `tests/phase3-tests.sql` (expect `ALL PHASE 3 TESTS PASSED`). The patches use `$patch$`/`$func$` tags so the SQL Editor's dollar-quote parser never aborts the run.
+
 ---
 
 # Development

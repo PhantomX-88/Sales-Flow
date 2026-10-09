@@ -6,6 +6,7 @@ import {
 } from "@/lib/pipeline-config";
 import type {
   AccountSummary,
+  Activity,
   Filters,
   ForecastSummary,
   FunnelStage,
@@ -396,6 +397,43 @@ export function computeTasks(
 
   const toneWeight = { danger: 0, warning: 1, info: 2 } as const;
   return tasks.sort((a, b) => toneWeight[a.tone] - toneWeight[b.tone]);
+}
+
+/**
+ * Reminders derived from activities that carry a next step + due date.
+ * Overdue and due-within-7-days steps become task items so they surface
+ * in the Tasks view alongside pipeline-derived tasks (Phase 3).
+ */
+export function computeReminders(activities: Activity[], today: string): TaskItem[] {
+  const reminders: TaskItem[] = [];
+
+  for (const activity of activities) {
+    if (!activity.nextStep || !activity.dueDate || !activity.opportunityId) continue;
+    const daysUntil = daysBetween(activity.dueDate, today);
+
+    if (daysUntil < 0) {
+      reminders.push({
+        id: `reminder-${activity.id}`,
+        title: activity.nextStep,
+        detail: activity.text,
+        dueLabel: `${Math.abs(daysUntil)} ${pluralize(Math.abs(daysUntil), "day")} overdue`,
+        tone: "danger",
+        opportunityId: activity.opportunityId,
+      });
+    } else if (daysUntil <= 7) {
+      reminders.push({
+        id: `reminder-${activity.id}`,
+        title: activity.nextStep,
+        detail: activity.text,
+        dueLabel:
+          daysUntil === 0 ? "Due today" : `Due in ${daysUntil} ${pluralize(daysUntil, "day")}`,
+        tone: "warning",
+        opportunityId: activity.opportunityId,
+      });
+    }
+  }
+
+  return reminders;
 }
 
 /* ------------------------------------------------------------------ */

@@ -70,7 +70,8 @@ export type ActivityType =
   | "note"
   | "call"
   | "email"
-  | "meeting";
+  | "meeting"
+  | "follow-up";
 
 export interface Activity {
   id: string;
@@ -78,6 +79,10 @@ export interface Activity {
   text: string;
   time: string;
   opportunityId?: string;
+  /** Optional next step logged with the activity (drives reminders). */
+  nextStep?: string;
+  /** Optional due date (YYYY-MM-DD) for the next step. */
+  dueDate?: string;
 }
 
 export interface MonthlyRevenuePoint {

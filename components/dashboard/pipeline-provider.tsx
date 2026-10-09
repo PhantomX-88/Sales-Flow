@@ -11,6 +11,7 @@ import {
   computeFunnel,
   computeKpis,
   computeMetrics,
+  computeReminders,
   computeRepPerformance,
   computeTasks,
   countActiveFilters,
@@ -80,6 +81,8 @@ interface PipelineContextValue {
   /* opportunities + activities */
   opportunities: Opportunity[];
   activities: Activity[];
+  /** Personal sales_targets row for the signed-in sub-user (null for owners). */
+  personalTarget: { amount: number; period: string } | null;
 
   /* query state */
   searchQuery: string;
@@ -144,7 +147,12 @@ interface PipelineContextValue {
   markWon: (id: string) => void;
   markLost: (id: string) => void;
   deleteOpportunity: (id: string) => void;
-  addActivity: (opportunityId: string, type: ActivityType, text: string) => void;
+  addActivity: (
+    opportunityId: string,
+    type: ActivityType,
+    text: string,
+    meta?: { nextStep?: string; dueDate?: string },
+  ) => void;
   exportCsv: (rows?: Opportunity[], filename?: string) => void;
 
   /* settings */
@@ -242,11 +250,13 @@ function fromActivityRow(row: Record<string, unknown>): Activity {
     text: String(row.text),
     time: row.created_at ? new Date(String(row.created_at)).toLocaleString() : "Just now",
     opportunityId: row.opportunity_id ? String(row.opportunity_id) : undefined,
+    nextStep: row.next_step ? String(row.next_step) : undefined,
+    dueDate: row.due_date ? String(row.due_date) : undefined,
   };
 }
 
 export function PipelineProvider({ children }: { children: React.ReactNode }) {
-  const { displayName, isAuthenticated, isReady, organizationId, organization, resolveOrganization } = useAuth();
+  const { displayName, isAuthenticated, isReady, organizationId, organization, membershipRole, userId, resolveOrganization } = useAuth();
   const currency: OrganizationCurrency = organization?.currency ?? "USD";
   const organizationOwners = React.useMemo(
     () => displayName ? [{ id: "current-user", name: displayName, role: "Member", initials: displayName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase() }] : [],
@@ -256,6 +266,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   const [opportunities, setOpportunities] = React.useState<Opportunity[]>([]);
   const [activities, setActivities] = React.useState<Activity[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [personalTarget, setPersonalTarget] = React.useState<{ amount: number; period: string } | null>(null);
 
   const [searchQuery, setSearchQueryState] = React.useState("");
   const [filters, setFilters] = React.useState<Filters>(DEFAULT_FILTERS);
@@ -284,9 +295,28 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     async function loadWorkspaceData() {
       setIsLoading(true);
       const supabase = getSupabaseClient();
-      const [opportunitiesResult, activitiesResult] = await Promise.all([
-        supabase.from("opportunities").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+      // Sub-users load only their own deals; RLS enforces the same rule
+      // server-side — the explicit filter just narrows the payload.
+      const scopeToSelf = membershipRole === "sales_rep" && Boolean(userId);
+      let opportunitiesQuery = supabase
+        .from("opportunities")
+        .select("*")
+        .eq("organization_id", organizationId);
+      if (scopeToSelf) {
+        opportunitiesQuery = opportunitiesQuery.eq("owner_id", userId as string);
+      }
+      // Sentinel UUID keeps the query valid while userId is still null;
+      // it never matches a real row.
+      const targetUserId = userId ?? "00000000-0000-0000-0000-000000000000";
+      const [opportunitiesResult, activitiesResult, targetResult] = await Promise.all([
+        opportunitiesQuery.order("created_at", { ascending: false }),
         supabase.from("activities").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
+        supabase
+          .from("sales_targets")
+          .select("target_amount, period")
+          .eq("organization_id", organizationId)
+          .eq("user_id", targetUserId)
+          .maybeSingle(),
       ]);
       if (!mounted) return;
       if (opportunitiesResult.error || activitiesResult.error) {
@@ -295,6 +325,13 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         setOpportunities((opportunitiesResult.data ?? []).map((row) => fromOpportunityRow(row as Record<string, unknown>)));
         setActivities((activitiesResult.data ?? []).map((row) => fromActivityRow(row as Record<string, unknown>)));
       }
+      if (!targetResult.error) {
+        setPersonalTarget(
+          targetResult.data
+            ? { amount: Number(targetResult.data.target_amount ?? 0), period: String(targetResult.data.period ?? "monthly") }
+            : null,
+        );
+      }
       setIsLoading(false);
     }
 
@@ -302,7 +339,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [isAuthenticated, isReady, organizationId]);
+  }, [isAuthenticated, isReady, organizationId, membershipRole, userId]);
 
   const setSearchQuery = React.useCallback((value: string) => {
     setSearchQueryState(value);
@@ -398,7 +435,13 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     [opportunities],
   );
   const accounts = React.useMemo(() => computeAccounts(opportunities, TODAY), [opportunities]);
-  const tasks = React.useMemo(() => computeTasks(opportunities, TODAY, currency), [currency, opportunities]);
+  const tasks = React.useMemo(() => {
+    const toneWeight = { danger: 0, warning: 1, info: 2 } as const;
+    return [
+      ...computeTasks(opportunities, TODAY, currency),
+      ...computeReminders(activities, TODAY),
+    ].sort((a, b) => toneWeight[a.tone] - toneWeight[b.tone]);
+  }, [activities, currency, opportunities]);
 
   const selectedOpportunity = React.useMemo(
     () => opportunities.find((opportunity) => opportunity.id === selectedId) ?? null,
@@ -424,6 +467,8 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
           opportunity_id: activity.opportunityId ?? null,
           type: activity.type,
           text: activity.text,
+          next_step: activity.nextStep ?? null,
+          due_date: activity.dueDate ?? null,
         })
         .select("id, created_at")
         .single();
@@ -669,10 +714,21 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addActivity = React.useCallback(
-    async (opportunityId: string, type: ActivityType, text: string) => {
+    async (
+      opportunityId: string,
+      type: ActivityType,
+      text: string,
+      meta?: { nextStep?: string; dueDate?: string },
+    ) => {
       if (!organizationId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === opportunityId);
-      await pushActivity({ type, text, opportunityId });
+      await pushActivity({
+        type,
+        text,
+        opportunityId,
+        nextStep: meta?.nextStep,
+        dueDate: meta?.dueDate,
+      });
       const { error } = await getSupabaseClient()
         .from("opportunities")
         .update({ last_activity: "Just now" })
@@ -746,6 +802,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
 
     opportunities,
     activities,
+    personalTarget,
 
     searchQuery,
     setSearchQuery,

@@ -11,6 +11,7 @@ import {
   Trophy,
 } from "lucide-react";
 
+import { useAuth } from "@/components/auth/auth-provider";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -36,6 +37,9 @@ interface OpportunityActionsProps {
 export function OpportunityActions({ opportunity, align = "end" }: OpportunityActionsProps) {
   const { openOpportunity, openEditDialog, moveStage, markWon, markLost, deleteOpportunity } =
     usePipeline();
+  const { membershipRole } = useAuth();
+  // Sub-users cannot delete (RLS has no delete policy for them) — hide it.
+  const canDelete = membershipRole === "owner";
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   return (
@@ -99,10 +103,12 @@ export function OpportunityActions({ opportunity, align = "end" }: OpportunityAc
             Mark as lost
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-rose-600" onSelect={() => setConfirmDelete(true)}>
-            <Trash2 />
-            Delete
-          </DropdownMenuItem>
+          {canDelete ? (
+            <DropdownMenuItem className="text-rose-600" onSelect={() => setConfirmDelete(true)}>
+              <Trash2 />
+              Delete
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 
