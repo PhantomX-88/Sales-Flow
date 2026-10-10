@@ -11,6 +11,7 @@ import {
   computeFunnel,
   computeKpis,
   computeMetrics,
+  computeMonthlyRevenue,
   computeReminders,
   computeRepPerformance,
   computeTasks,
@@ -33,6 +34,7 @@ import type {
   ForecastSummary,
   FunnelStage,
   KpiMetric,
+  MonthlyRevenuePoint,
   Opportunity,
   OpportunityDraft,
   PipelineMetrics,
@@ -72,7 +74,6 @@ interface PipelineContextValue {
   currency: OrganizationCurrency;
   owners: typeof dataset.owners;
   stages: typeof dataset.stages;
-  monthlyRevenue: typeof dataset.monthlyRevenue;
   kanbanStages: PipelineStage[];
   ownerNames: string[];
   today: string;
@@ -114,6 +115,7 @@ interface PipelineContextValue {
   funnel: FunnelStage[];
   repPerformance: RepPerformance[];
   forecast: ForecastSummary;
+  monthlyRevenue: MonthlyRevenuePoint[];
   accounts: AccountSummary[];
   tasks: TaskItem[];
 
@@ -243,10 +245,27 @@ function fromOpportunityRow(row: Record<string, unknown>): Opportunity {
   };
 }
 
+const ACTIVITY_TYPES: ActivityType[] = [
+  "proposal",
+  "stage_change",
+  "lead",
+  "overdue",
+  "won",
+  "lost",
+  "note",
+  "call",
+  "email",
+  "meeting",
+  "follow-up",
+];
+
 function fromActivityRow(row: Record<string, unknown>): Activity {
+  const type = ACTIVITY_TYPES.includes(row.type as ActivityType)
+    ? (row.type as ActivityType)
+    : "note";
   return {
     id: String(row.id),
-    type: row.type as ActivityType,
+    type,
     text: String(row.text),
     time: row.created_at ? new Date(String(row.created_at)).toLocaleString() : "Just now",
     opportunityId: row.opportunity_id ? String(row.opportunity_id) : undefined,
@@ -421,19 +440,32 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   );
 
   const metrics = React.useMemo(() => computeMetrics(opportunities, TODAY), [opportunities]);
+  const monthlyRevenue = React.useMemo(
+    () => computeMonthlyRevenue(opportunities, TODAY),
+    [opportunities],
+  );
   const kpis = React.useMemo(
-    () => computeKpis(opportunities, dataset.monthlyRevenue, TODAY, currency),
-    [currency, opportunities],
+    () => computeKpis(opportunities, monthlyRevenue, TODAY, currency),
+    [currency, monthlyRevenue, opportunities],
   );
   const funnel = React.useMemo(() => computeFunnel(opportunities), [opportunities]);
   const repPerformance = React.useMemo(
     () => computeRepPerformance(opportunities, organizationOwners),
     [opportunities, organizationOwners],
   );
-  const forecast = React.useMemo(
-    () => computeForecast(opportunities, dataset.forecast),
-    [opportunities],
-  );
+  const forecast = React.useMemo(() => {
+    const resolvedPeriod =
+      membershipRole === "sales_rep" && personalTarget && (personalTarget.period === "monthly" || personalTarget.period === "annual")
+        ? personalTarget.period
+        : organization?.targetPeriod ?? "quarterly";
+    const resolvedTarget =
+      membershipRole === "sales_rep" && personalTarget ? personalTarget.amount : organization?.revenueTarget ?? 0;
+    return computeForecast(
+      opportunities,
+      { amount: resolvedTarget, period: resolvedPeriod },
+      TODAY,
+    );
+  }, [membershipRole, opportunities, organization?.targetPeriod, organization?.revenueTarget, personalTarget]);
   const accounts = React.useMemo(() => computeAccounts(opportunities, TODAY), [opportunities]);
   const tasks = React.useMemo(() => {
     const toneWeight = { danger: 0, warning: 1, info: 2 } as const;
@@ -722,6 +754,10 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     ) => {
       if (!organizationId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === opportunityId);
+
+      // Save the opportunity touch marker even if the activity itself is
+      // blocked by permissions — but do it after the main insert so a
+      // failure there short-circuits first.
       await pushActivity({
         type,
         text,
@@ -735,7 +771,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         .eq("id", opportunityId)
         .eq("organization_id", organizationId);
       if (error) {
-        toast({ title: "Activity could not be saved.", description: error.message, variant: "destructive" });
+        toast({ title: "Deal could not be flagged as touched.", description: error.message, variant: "destructive" });
         return;
       }
       setOpportunities((current) =>
@@ -794,7 +830,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     currency,
     owners: organizationOwners,
     stages: dataset.stages,
-    monthlyRevenue: dataset.monthlyRevenue,
+    monthlyRevenue,
     kanbanStages: KANBAN_STAGES,
     ownerNames: organizationOwnerNames.length ? organizationOwnerNames : configuredOwnerNames,
     today: TODAY,

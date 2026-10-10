@@ -212,7 +212,9 @@ export interface RepPerformance {
 }
 
 export interface ForecastSummary {
-  quarterlyTarget: number;
+  /** Configured org target for the period. */
+  target: number;
+  period: "monthly" | "quarterly" | "annual";
   closedRevenue: number;
   commit: number;
   bestCase: number;

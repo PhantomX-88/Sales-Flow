@@ -62,12 +62,11 @@ export function ForecastCard({ className }: { className?: string }) {
   const isOnTrack = forecast.status === "on-track";
 
   return (
-    <Card className={cn("flex flex-col", className)}>
-      <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+    <Card className={cn("flex flex-col", className)}>        <div className="flex items-start justify-between gap-3 border-b border-border p-5">
         <div className="space-y-1">
           <h2 className="text-[15px] font-semibold tracking-tight">Forecast</h2>
           <p className="text-[13px] text-muted-foreground">
-            {metadata.period} · target {formatCurrencyCompact(forecast.quarterlyTarget, currency)}
+            {metadata.period} · target {formatCurrencyCompact(forecast.target, currency)}
           </p>
         </div>
         <Badge variant={isOnTrack ? "success" : "warning"} className="shrink-0">
@@ -96,7 +95,7 @@ export function ForecastCard({ className }: { className?: string }) {
                 Target
               </p>
               <p className="text-sm font-semibold tabular">
-                {formatCurrency(forecast.quarterlyTarget, currency)}
+                {formatCurrency(forecast.target, currency)}
               </p>
             </div>
           </div>
@@ -105,10 +104,10 @@ export function ForecastCard({ className }: { className?: string }) {
             value={attainment}
             className="h-2.5"
             indicatorClassName={isOnTrack ? "bg-emerald-500" : "bg-primary"}
-            aria-label="Quarterly target attainment"
+            aria-label="Target attainment"
           />
           <div className="flex items-center justify-between text-2xs text-muted-foreground">
-            <span>{formatPercent(forecast.attainmentPercent, 0)} of quarterly target achieved</span>
+            <span>{formatPercent(forecast.attainmentPercent, 0)} of {forecast.period} target achieved</span>
             <span>
               {forecast.gapToTarget > 0
                 ? `${formatCurrency(forecast.gapToTarget, currency)} to go`
@@ -141,7 +140,7 @@ export function ForecastCard({ className }: { className?: string }) {
             label="Gap to target"
             value={forecast.gapToTarget}
             currency={currency}
-            hint="Quarterly target minus closed revenue"
+            hint="Target minus closed-won revenue this period"
             tone="muted"
           />
         </div>
@@ -161,7 +160,7 @@ export function ForecastCard({ className }: { className?: string }) {
               Forecast confidence {formatPercent(forecast.confidencePercent, 0)}
             </p>
             <p className="text-2xs text-muted-foreground">
-              Closed revenue plus weighted pipeline vs. quarterly target
+              Closed revenue plus weighted pipeline vs. {forecast.period} target
             </p>
           </div>
         </div>

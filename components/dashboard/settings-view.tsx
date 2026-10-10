@@ -172,7 +172,7 @@ export function SettingsView() {
               { label: "Period", value: metadata.period },
               { label: "Last updated", value: new Date(metadata.lastUpdated).toUTCString() },
               { label: "Records", value: `${opportunities.length} opportunities` },
-              { label: "Quarterly target", value: formatCurrency(forecast.quarterlyTarget, currency) },
+              { label: "Target", value: formatCurrency(forecast.target, currency) },
             ].map((row) => (
               <div key={row.label} className="flex items-start justify-between gap-4">
                 <dt className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">

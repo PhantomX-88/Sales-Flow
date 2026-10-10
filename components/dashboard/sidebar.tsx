@@ -149,14 +149,14 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
 
         <div className="mx-0.5 rounded-xl border border-sidebar-border bg-muted/50 p-3.5">
           <div className="flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <span>{forecast.quarterlyTarget ? "Quarter target" : "Target"}</span>
+            <span>{forecast.target ? `${forecast.period} target` : "Target"}</span>
             <span className="tabular text-foreground">{formatPercent(attainment, 0)}</span>
           </div>
           <p className="mt-2 text-sm font-semibold tabular">
             {formatCurrencyCompact(forecast.closedRevenue, currency)}
             <span className="text-muted-foreground">
               {" "}
-              / {formatCurrencyCompact(forecast.quarterlyTarget, currency)}
+              / {formatCurrencyCompact(forecast.target, currency)}
             </span>
           </p>
           <Progress

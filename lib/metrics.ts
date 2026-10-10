@@ -34,6 +34,7 @@ import {
   parseDate,
   pluralize,
   startOfQuarter,
+  toDateKey,
 } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -116,31 +117,95 @@ export function computeMetrics(opportunities: Opportunity[], today: string): Pip
 }
 
 /**
- * Funnel counts are cumulative: a deal in "Negotiation" has passed through
- * every earlier stage, which is what makes the conversion rates meaningful.
+ * Funnel counts are a stage snapshot: each deal appears once, in the stage it
+ * sits in right now. Conversion is current-stage count vs the previous stage.
  */
 export function computeFunnel(opportunities: Opportunity[]): FunnelStage[] {
   const funnelStages: PipelineStage[] = STAGE_ORDER.filter((stage) => stage !== "Closed Lost");
-  const countable = opportunities.filter((opportunity) => opportunity.stage !== "Closed Lost");
 
   return funnelStages.map((stage, index) => {
-    const reached = countable.filter(
-      (opportunity) => funnelStages.indexOf(opportunity.stage) >= index,
-    );
-    const previousReached = index === 0 ? null : countable.filter(
-      (opportunity) => funnelStages.indexOf(opportunity.stage) >= index - 1,
-    );
+    const current = opportunities.filter((opportunity) => opportunity.stage === stage);
+    const previousStage = index === 0 ? null : funnelStages[index - 1];
+    const previous = previousStage
+      ? opportunities.filter((opportunity) => opportunity.stage === previousStage)
+      : null;
 
     return {
       stage,
-      reachedCount: reached.length,
-      reachedValue: sumValues(reached),
+      reachedCount: current.length,
+      reachedValue: sumValues(current),
       conversionRate:
-        previousReached && previousReached.length
-          ? (reached.length / previousReached.length) * 100
-          : null,
+        previous && previous.length ? (current.length / previous.length) * 100 : null,
     };
   });
+}
+
+/**
+ * Pipeline & closed-revenue movement for the trailing `months` (ending with
+ * the month of `today`), derived from the live opportunities instead of a
+ * static dataset so the chart moves as deals are created, moved and closed.
+ *
+ * A deal counts toward a month's `pipeline` once it exists (created on or
+ * before the month end) and until it is decided (closed date after the month
+ * end). `won` is the value of deals closed won inside that month.
+ */
+export function computeMonthlyRevenue(
+  opportunities: Opportunity[],
+  today: string,
+  months = 6,
+): MonthlyRevenuePoint[] {
+  const base = parseDate(today);
+  const points: MonthlyRevenuePoint[] = [];
+
+  for (let offset = months - 1; offset >= 0; offset--) {
+    const monthEnd = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() - offset + 1, 0));
+    const key = monthEnd.toISOString().slice(0, 7);
+
+    const pipeline = sumValues(
+      opportunities.filter(
+        (opportunity) =>
+          parseDate(opportunity.createdDate).getTime() <= monthEnd.getTime() &&
+          (!opportunity.closedDate || parseDate(opportunity.closedDate).getTime() > monthEnd.getTime()),
+      ),
+    );
+    const won = sumValues(
+      opportunities.filter(
+        (opportunity) =>
+          isWon(opportunity) &&
+          Boolean(opportunity.closedDate) &&
+          monthKey(opportunity.closedDate as string) === key,
+      ),
+    );
+
+    points.push({ month: key, pipeline, won });
+  }
+
+  return points;
+}
+
+/** First and last day (ISO) of the current target window for `period`. */
+export function forecastPeriodWindow(
+  period: "monthly" | "quarterly" | "annual",
+  today: string,
+): { start: string; end: string } {
+  const date = parseDate(today);
+  const year = date.getUTCFullYear();
+  const monthIndex = date.getUTCMonth();
+
+  if (period === "annual") {
+    return { start: `${year}-01-01`, end: `${year}-12-31` };
+  }
+  if (period === "monthly") {
+    return {
+      start: toDateKey(new Date(Date.UTC(year, monthIndex, 1))),
+      end: toDateKey(new Date(Date.UTC(year, monthIndex + 1, 0))),
+    };
+  }
+  const quarterStartMonth = Math.floor(monthIndex / 3) * 3;
+  return {
+    start: toDateKey(new Date(Date.UTC(year, quarterStartMonth, 1))),
+    end: toDateKey(new Date(Date.UTC(year, quarterStartMonth + 3, 0))),
+  };
 }
 
 export function computeRepPerformance(
@@ -170,34 +235,49 @@ export function computeRepPerformance(
 }
 
 export interface ForecastTargets {
-  quarterlyTarget: number;
-  closedRevenue: number;
-  commit: number;
-  bestCase: number;
+  /** Target amount for the period (organization revenue_target). */
+  amount: number;
+  period: "monthly" | "quarterly" | "annual";
 }
 
+/**
+ * Tracks closed-won revenue **inside the current target window** against the
+ * organization's configured target, so attainment moves as deals are closed
+ * this period — not as an all-time total.
+ */
 export function computeForecast(
   opportunities: Opportunity[],
   targets: ForecastTargets,
+  today: string,
 ): ForecastSummary {
-  const open = opportunities.filter(isOpen);
-  const closedRevenue = sumValues(opportunities.filter(isWon));
+  const window = forecastPeriodWindow(targets.period, today);
+  const closedRevenue = sumValues(
+    opportunities.filter(
+      (opportunity) =>
+        isWon(opportunity) &&
+        Boolean(opportunity.closedDate) &&
+        (opportunity.closedDate as string) >= window.start &&
+        (opportunity.closedDate as string) <= window.end,
+    ),
+  );
 
-  // Commit = late-stage deals the team expects to land this quarter.
+  const open = opportunities.filter(isOpen);
+  // Commit = late-stage deals the team expects to land this period.
   const commit = sumValues(open.filter((opportunity) => opportunity.probability >= 85));
   // Best case = every open deal closes at full value.
   const bestCase = sumValues(open);
   const weighted = weightedValue(open);
 
-  const quarterlyTarget = targets.quarterlyTarget;
-  const gapToTarget = Math.max(quarterlyTarget - closedRevenue, 0);
-  const attainmentPercent = quarterlyTarget ? (closedRevenue / quarterlyTarget) * 100 : 0;
-  const confidencePercent = quarterlyTarget
-    ? clamp(((closedRevenue + weighted) / quarterlyTarget) * 100, 0, 100)
+  const target = targets.amount;
+  const gapToTarget = Math.max(target - closedRevenue, 0);
+  const attainmentPercent = target ? (closedRevenue / target) * 100 : 0;
+  const confidencePercent = target
+    ? clamp(((closedRevenue + weighted) / target) * 100, 0, 100)
     : 0;
 
   return {
-    quarterlyTarget,
+    target,
+    period: targets.period,
     closedRevenue,
     commit,
     bestCase,
@@ -205,7 +285,7 @@ export function computeForecast(
     gapToTarget,
     attainmentPercent,
     confidencePercent,
-    status: closedRevenue + weighted >= quarterlyTarget ? "on-track" : "at-risk",
+    status: closedRevenue + weighted >= target ? "on-track" : "at-risk",
   };
 }
 
