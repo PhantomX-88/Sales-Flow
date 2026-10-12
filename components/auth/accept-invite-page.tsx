@@ -94,10 +94,46 @@ export function AcceptInvitePage() {
       .then(({ data }) => {
         if (active) setUserEmail(data.user?.email?.toLowerCase() ?? null);
       });
+    // The Supabase email-confirmation link returns with a PKCE code that the
+    // client exchanges slightly AFTER first render; pick up that late
+    // sign-in (and any sign-out) so the page reflects the real state.
+    const { data: listener } = getSupabaseClient().auth.onAuthStateChange((event) => {
+      if (!active) return;
+      if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "INITIAL_SESSION") {
+        void getSupabaseClient()
+          .auth.getUser()
+          .then(({ data }) => {
+            if (active) setUserEmail(data.user?.email?.toLowerCase() ?? null);
+          });
+      }
+      if (event === "SIGNED_OUT") {
+        if (active) setUserEmail(null);
+      }
+    });
     return () => {
       active = false;
+      listener.subscription.unsubscribe();
     };
   }, [isAuthenticated, isReady]);
+
+  // While waiting for email confirmation, detect a session that appears in a
+  // another tab (the user confirms the email elsewhere, or arrives back from
+  // the confirmation link). resolveOrganization() flips isAuthenticated, and
+  // the email-match check above takes over from there.
+  useEffect(() => {
+    if (lookup.kind !== "valid" || !confirmSent || isAuthenticated) return;
+    let active = true;
+    const check = async () => {
+      const { data } = await getSupabaseClient().auth.getSession();
+      if (active && data.session) await resolveOrganization();
+    };
+    const timer = window.setInterval(() => void check(), 3000);
+    void check();
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [confirmSent, isAuthenticated, lookup.kind, resolveOrganization]);
 
   const handleSignUp = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -121,7 +157,12 @@ export function AcceptInvitePage() {
           setFormError(result.error);
           return;
         }
-        if (result.needsEmailConfirmation) setConfirmSent(true);
+        if (result.needsEmailConfirmation) {
+          setConfirmSent(true);
+        }
+        // A returned session (confirmation disabled) is picked up by the
+        // auth-state listener above; the authenticated render path shows
+        // the Accept screen automatically.
       } catch (error) {
         setFormError(error instanceof Error ? error.message : "Could not create your account.");
       } finally {
@@ -204,6 +245,14 @@ export function AcceptInvitePage() {
   }
 
   if (confirmSent && info) {
+    const confirmedElsewhere = async () => {
+      const { data } = await getSupabaseClient().auth.getSession();
+      if (data.session) {
+        await resolveOrganization();
+      } else {
+        setConfirmSent(false);
+      }
+    };
     return (
       <AuthShell>
         <div className="w-full max-w-sm space-y-4 text-center">
@@ -213,9 +262,10 @@ export function AcceptInvitePage() {
           <h1 className="text-2xl font-semibold tracking-tight">Confirm your email</h1>
           <p className="text-sm text-muted-foreground">
             We sent a confirmation link to <span className="font-medium text-foreground">{info.email}</span>.
-            Open it and you will return to this invitation automatically.
+            Open it — if it opens a different address, copy it into the browser running this site —
+            and you will return to this invitation automatically.
           </p>
-          <Button variant="outline" onClick={() => setConfirmSent(false)}>
+          <Button variant="outline" onClick={() => void confirmedElsewhere()}>
             I have confirmed — continue
           </Button>
         </div>

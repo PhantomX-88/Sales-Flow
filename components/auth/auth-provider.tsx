@@ -146,6 +146,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setMembershipRole(null);
         setDisplayName(null);
         setUserId(null);
+        return;
+      }
+      // A session that appears after first render — e.g. the Supabase email
+      // confirmation link completing its PKCE exchange, or a sign-in in
+      // another tab — must also load the organization, otherwise the user
+      // stays on the sign-up screen despite being signed in.
+      if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "INITIAL_SESSION") {
+        void resolveOrganization();
       }
     });
 
