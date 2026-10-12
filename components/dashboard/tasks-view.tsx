@@ -16,8 +16,8 @@ const TONE_META: Record<
   TaskItem["tone"],
   { label: string; icon: typeof CircleAlert; className: string }
 > = {
-  danger: { label: "Overdue", icon: CircleAlert, className: "bg-rose-50 text-rose-600" },
-  warning: { label: "Closing soon", icon: Clock, className: "bg-amber-50 text-amber-600" },
+  danger: { label: "Overdue", icon: CircleAlert, className: "icon-soft-danger" },
+  warning: { label: "Closing soon", icon: Clock, className: "icon-soft-warning" },
   info: { label: "Stalled", icon: Clock, className: "bg-sky-50 text-sky-600" },
 };
 
@@ -56,7 +56,7 @@ export function TasksView() {
             </Button>
           ) : null}
         </div>
-        <Progress value={progress} className="mt-3 h-1.5" indicatorClassName="bg-emerald-500" />
+        <Progress value={progress} className="mt-3 h-1.5" indicatorClassName="progress-tint-success" />
       </Card>
 
       {tasks.length === 0 ? (
@@ -91,7 +91,7 @@ export function TasksView() {
                     className="mt-0.5 shrink-0 rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                   >
                     {isDone ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                      <CheckCircle2 className="h-5 w-5 on-success" />
                     ) : (
                       <Circle className="h-5 w-5" />
                     )}

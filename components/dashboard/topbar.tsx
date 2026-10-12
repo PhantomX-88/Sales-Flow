@@ -15,6 +15,7 @@ import {
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { NotificationMenu } from "@/components/dashboard/notification-menu";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { OwnerAvatar } from "@/components/dashboard/owner-avatar";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
@@ -151,6 +152,8 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
         ) : null}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          <ThemeToggle />
+
           <NotificationMenu />
 
           <Tooltip>

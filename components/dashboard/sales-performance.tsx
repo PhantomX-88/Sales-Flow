@@ -1,5 +1,8 @@
 "use client";
 
+import { useChartColors } from "@/lib/use-chart-colors";
+
+import * as React from "react";
 import {
   Bar,
   BarChart,
@@ -80,7 +83,7 @@ function PerformanceTable({ reps, currency }: { reps: RepPerformance[]; currency
               <TableCell className="px-3 py-2.5 text-right text-[13px] font-semibold tabular">
                 {formatCurrency(rep.pipeline, currency)}
               </TableCell>
-              <TableCell className="px-3 py-2.5 text-right text-[13px] tabular text-emerald-600">
+              <TableCell className="px-3 py-2.5 text-right text-[13px] tabular on-success">
                 {formatCurrency(rep.won, currency)}
               </TableCell>
               <TableCell className="px-3 py-2.5 text-right text-[13px] tabular">
@@ -96,6 +99,23 @@ function PerformanceTable({ reps, currency }: { reps: RepPerformance[]; currency
 
 export function SalesPerformance({ className }: { className?: string }) {
   const { repPerformance, isLoading, currency } = usePipeline();
+  const colors = useChartColors();
+
+  if (isLoading) {
+    return (
+      <Card className={className}>
+        <div className="border-b border-border p-5">
+          <h2 className="text-[15px] font-semibold tracking-tight">Sales performance</h2>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            Open pipeline and closed revenue by rep
+          </p>
+        </div>
+        <div className="p-5">
+          <PerformanceSkeleton />
+        </div>
+      </Card>
+    );
+  }
 
   const chartData = repPerformance.map((rep) => ({
     name: rep.name.split(" ")[0],
@@ -113,12 +133,7 @@ export function SalesPerformance({ className }: { className?: string }) {
         </p>
       </div>
 
-      {isLoading ? (
-        <div className="p-5">
-          <PerformanceSkeleton />
-        </div>
-      ) : (
-        <>
+      <>
           <div className="h-[190px] px-2 pt-5">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -127,13 +142,13 @@ export function SalesPerformance({ className }: { className?: string }) {
                 margin={{ top: 0, right: 16, left: 4, bottom: 0 }}
                 barGap={2}
               >
-                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#E2E8F0" />
+                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke={colors.grid} />
                 <XAxis
                   type="number"
                   tickFormatter={(value) => formatCurrencyAxis(value, currency)}
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "#64748B", fontSize: 11 }}
+                  tick={{ fill: colors.tick, fontSize: 11 }}
                 />
                 <YAxis
                   type="category"
@@ -141,11 +156,11 @@ export function SalesPerformance({ className }: { className?: string }) {
                   tickLine={false}
                   axisLine={false}
                   width={72}
-                  tick={{ fill: "#0F172A", fontSize: 12 }}
+                  tick={{ fill: colors.tick, fontSize: 12 }}
                 />
-                <Tooltip content={<PerformanceTooltip currency={currency} />} cursor={{ fill: "#F1F5F9" }} />
-                <Bar dataKey="pipeline" name="Pipeline" fill="#2563EB" radius={[0, 4, 4, 0]} barSize={10} />
-                <Bar dataKey="won" name="Closed won" fill="#059669" radius={[0, 4, 4, 0]} barSize={10} />
+                <Tooltip content={<PerformanceTooltip currency={currency} />} cursor={{ fill: colors.canvas }} />
+                <Bar dataKey="pipeline" name="Pipeline" fill={colors.pipeline} radius={[0, 4, 4, 0]} barSize={10} />
+                <Bar dataKey="won" name="Closed won" fill={colors.won} radius={[0, 4, 4, 0]} barSize={10} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -154,7 +169,6 @@ export function SalesPerformance({ className }: { className?: string }) {
             <PerformanceTable reps={repPerformance} currency={currency} />
           </div>
         </>
-      )}
     </Card>
   );
 }

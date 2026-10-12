@@ -12,6 +12,7 @@ import {
   ListChecks,
   KanbanSquare,
   RotateCcw,
+  ShieldCheck,
   Settings,
   Trash2,
   TrendingUp,
@@ -45,7 +46,7 @@ interface NavItem {
 export const SIDEBAR_WIDTH = 260;
 
 function useNavSections(): { label: string; items: NavItem[] }[] {
-  const { tasks } = usePipeline();
+  const { tasks, pendingDeletionCount } = usePipeline();
   const { membershipRole } = useAuth();
   const isOwner = membershipRole === "owner";
 
@@ -64,7 +65,17 @@ function useNavSections(): { label: string; items: NavItem[] }[] {
       label: "Management",
       items: [
         { key: "tasks", label: "Tasks", icon: ListChecks, badge: tasks.length },
-        ...(isOwner ? [{ key: "team" as const, label: "Team", icon: Users }] : []),
+        ...(isOwner
+          ? [
+              { key: "team" as const, label: "Team", icon: Users },
+              {
+                key: "approvals" as const,
+                label: "Approvals",
+                icon: ShieldCheck,
+                badge: pendingDeletionCount || undefined,
+              },
+            ]
+          : []),
         { key: "settings", label: "Settings", icon: Settings },
       ],
     },
@@ -135,7 +146,7 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
                       />
                       <span className="flex-1 text-left">{item.label}</span>
                       {item.badge ? (
-                        <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-2xs font-semibold text-rose-700">
+                        <span className="rounded-full soft-danger">
                           {item.badge}
                         </span>
                       ) : null}
@@ -163,7 +174,7 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
             value={attainment}
             className="mt-2.5 h-1.5"
             indicatorClassName={
-              forecast.status === "on-track" ? "bg-emerald-500" : "bg-amber-500"
+              forecast.status === "on-track" ? "fill-success" : "fill-warning"
             }
           />
           <p className="mt-2 text-2xs text-muted-foreground">

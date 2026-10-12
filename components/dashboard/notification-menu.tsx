@@ -17,10 +17,10 @@ import type { NotificationItem } from "@/lib/types";
 import { cn, daysBetween, formatCurrency } from "@/lib/utils";
 
 const TONE_STYLES: Record<NotificationItem["tone"], { icon: typeof Bell; className: string }> = {
-  danger: { icon: CircleAlert, className: "bg-rose-50 text-rose-600" },
-  warning: { icon: CalendarClock, className: "bg-amber-50 text-amber-600" },
-  info: { icon: Bell, className: "bg-primary/10 text-primary" },
-  success: { icon: Flame, className: "bg-emerald-50 text-emerald-600" },
+  danger: { icon: CircleAlert, className: "icon-soft-danger" },
+  warning: { icon: CalendarClock, className: "icon-soft-warning" },
+  info: { icon: Bell, className: "icon-soft-primary" },
+  success: { icon: Flame, className: "icon-soft-success" },
 };
 
 export function NotificationMenu() {
@@ -83,7 +83,7 @@ export function NotificationMenu() {
           {unreadCount ? (
             <span className="absolute right-1.5 top-1.5 flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-70" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+              <span className="relative inline-flex h-2 w-2 rounded-full fill-danger" />
             </span>
           ) : null}
         </Button>

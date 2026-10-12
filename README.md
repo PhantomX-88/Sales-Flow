@@ -349,6 +349,46 @@ Visibility matrix, all enforced by Postgres policies (never UI-only):
 
 ---
 
+## Phase 4 — Reassignment (owner only, history preserved)
+
+Two `SECURITY DEFINER` RPCs, both audit-logged and race-safe (`SELECT ... FOR UPDATE` on each deal row):
+
+* `reassign_opportunity(opportunity_id, new_owner_id)` — owner-only. Idempotent: reassigning to the current owner is a no-op with no duplicate history. Verifies the new owner is an **active member** of the same organization.
+* `bulk_reassign(from_user_id, to_user_id)` — owner-only, scoped to the source member's organization. Moves every **open** deal (stage not `Closed Won`/`Closed Lost`); closed deals keep their owner so closed-revenue history stays accurate. Returns the number of deals moved.
+
+Both write:
+
+1. An `opportunity_history` row (`old_owner_id`, `new_owner_id`, `actor_id`) — append-only, never updated or deleted. `opportunity_history` RLS: owners read their org's history; sub-users read rows where they were the old or new owner.
+2. An in-app notification activity (`Reassigned to you: …`) on the deal, visible to the new owner in their existing activity feed and timeline.
+3. An `audit_log` entry (`opportunity.reassigned` / `opportunity.bulk_reassigned`).
+
+UI: owners get a **Reassign to** picker in the opportunity detail drawer (member list from `profiles`, self filtered out), and a **Reassign N deal(s)** offer appears next to **Reactivate** for a deactivated member who still owns open deals (the bulk-reassign dialog includes a member picker). Closed-deal history is preserved by design — the dialog says so.
+
+**Run order in the SQL Editor:** `schema.sql` (contains the `PHASE 4` section) → `tests/phase4-tests.sql` (expect `ALL PHASE 4 TESTS PASSED`).
+
+---
+
+## Phase 5 — Deletion rules (soft delete + owner approval)
+
+Soft delete only — no `DELETE` policy for sub-users. All deletion paths are `SECURITY DEFINER` RPCs, audit-logged:
+
+* `soft_delete_opportunity(opportunity_id, reason)` — **owner only**, instant, no approval. Reason required (3–500 chars). Supersedes any pending deletion request for the same deal (marked *rejected > "Superseded by direct owner deletion"*).
+* `request_deletion(opportunity_id, reason)` — **sub-user only**, and only for deals they created **and** currently own. One open request per opportunity (partial unique index; races fail safely).
+* `approve_deletion_request(request_id, comment?)` — owner only; marks the request approved and soft-deletes the deal atomically.
+* `reject_deletion_request(request_id, comment)` — owner only; **comment required** (≥3 chars); the deal returns to normal.
+* `restore_opportunity(opportunity_id)` — owner only, inside the **30-day** window; clears the markers and audits `opportunity.restored`.
+* `purge_expired_soft_deletes()` — scheduled job (pg_cron or Vercel Cron calling a service-role route); hard-deletes rows with `deleted_at` older than 30 days and logs `opportunity.purged`.
+
+`deletion_requests` RLS: owners read org-wide; sub-users read their own requests. All writes go through the RPCs — no client insert/update grants. Opportunities RLS: the sub-user policy now includes `deleted_at is null`, so soft-deleted rows vanish immediately for reps (out of their dashboards, kanban and metrics); owners intentionally still see them for the restore queue.
+
+UI: owner delete dialogs require a reason; sub-users get a **Request deletion** action (on deals they created and own) and their deals show a **Deletion pending** badge while a request is open; owners get an **Approvals** nav item (badge = pending count) with the queue, a **Deleted deals** list with one-click **Restore** (days-left countdown), and the recently-reviewed trail. Deletion requests load with the workspace (RLS narrows rows automatically).
+
+**Run order in the SQL Editor:** `schema.sql` (contains the `PHASE 5` section) → `tests/phase5-tests.sql` (expect `ALL PHASE 5 TESTS PASSED`).
+
+**Scheduled job:** run `select purge_expired_soft_deletes();` nightly — same pg_cron / Vercel Cron entry as `expire_stale_invitations()`.
+
+---
+
 # Development
 
 ## Requirements

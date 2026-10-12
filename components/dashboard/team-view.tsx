@@ -12,7 +12,15 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import { getSupabaseClient } from "@/lib/supabase";
 import { callTeamRoute, type InviteResult } from "@/lib/team-api";
@@ -63,8 +71,8 @@ function periodStart(period: string): Date {
 
 const INVITATION_STATUS_STYLES: Record<InvitationRecord["status"], string> = {
   pending: "border-sky-200 bg-sky-50 text-sky-700",
-  accepted: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  revoked: "border-rose-200 bg-rose-50 text-rose-700",
+  accepted: "soft-outline-success",
+  revoked: "soft-outline-danger",
   expired: "border-slate-200 bg-slate-100 text-slate-500",
 };
 
@@ -82,9 +90,11 @@ export function TeamView() {
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [confirmAction, setConfirmAction] = React.useState<
     | { kind: "deactivate"; userId: string; name: string; openDeals: number }
+    | { kind: "bulk-reassign"; userId: string; name: string; openDeals: number }
     | { kind: "revoke"; invitationId: string; email: string }
     | null
   >(null);
+  const [reassignToUserId, setReassignToUserId] = React.useState<string>("");
 
   const loadTeam = React.useCallback(async () => {
     if (!organizationId) {
@@ -179,6 +189,32 @@ export function TeamView() {
       return;
     }
     toast({ title: status === "active" ? "Member reactivated." : "Member deactivated." });
+    await loadTeam();
+  };
+
+  /* Phase 4 */  const handleBulkReassign = async (fromUserId: string, toUserId: string) => {
+    if (!fromUserId || !toUserId || fromUserId === toUserId) {
+      toast({
+        title: "Pick a different member.",
+        description: "Choose who receives the open deals.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.rpc("bulk_reassign", {
+      from_user_id: fromUserId,
+      to_user_id: toUserId,
+    });
+    if (error) {
+      toast({ title: "Bulk reassignment failed.", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: `${data ?? 0} open deal(s) reassigned.`,
+      description: "The new owner sees them in their pipeline now.",
+      variant: "success",
+    });
     await loadTeam();
   };
 
@@ -293,6 +329,9 @@ export function TeamView() {
               const actual = target ? actualFor(member.userId, target.period) : 0;
               const isExpanded = expandedUserId === member.userId;
               const memberDeals = opportunities.filter((opportunity) => opportunity.ownerId === member.userId);
+              const openReassignCount = memberDeals.filter(
+                (opportunity) => opportunity.stage !== "Closed Won" && opportunity.stage !== "Closed Lost",
+              ).length;
 
               return (
                 <li key={member.userId}>
@@ -325,7 +364,7 @@ export function TeamView() {
                             {roleLabel(member.role)}
                           </span>
                           {member.status === "inactive" ? (
-                            <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-2xs font-medium text-rose-700">
+                            <span className="soft-outline-danger">
                               Deactivated
                             </span>
                           ) : null}
@@ -358,10 +397,29 @@ export function TeamView() {
                           Deactivate
                         </Button>
                       ) : (
-                        <Button variant="outline" size="sm" onClick={() => void setMemberStatus(member.userId, "active")}>
-                          <UserCheck />
-                          Reactivate
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => void setMemberStatus(member.userId, "active")}>
+                            <UserCheck />
+                            Reactivate
+                          </Button>
+                          {openReassignCount > 0 ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setConfirmAction({
+                                  kind: "bulk-reassign",
+                                  userId: member.userId,
+                                  name: member.fullName,
+                                  openDeals: openReassignCount,
+                                })
+                              }
+                            >
+                              <UserMinus />
+                              Reassign {openReassignCount} deal(s)
+                            </Button>
+                          ) : null}
+                        </div>
                       )
                     ) : null}
 
@@ -547,6 +605,50 @@ export function TeamView() {
           setConfirmAction(null);
         }}
       />
+
+      <ConfirmDialog
+        open={confirmAction?.kind === "bulk-reassign"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmAction(null);
+            setReassignToUserId("");
+          }
+        }}
+        title={`Reassign ${
+          confirmAction?.kind === "bulk-reassign" ? confirmAction.openDeals : ""
+        } open deal(s) from ${confirmAction?.kind === "bulk-reassign" ? confirmAction.name : ""}?`}
+        description="Closed deals keep their owner so commission history stays accurate. The new owner receives an in-app notification for every deal moved to them."
+        confirmLabel="Reassign deals"
+        onConfirm={async () => {
+          if (confirmAction?.kind === "bulk-reassign" && reassignToUserId) {
+            await handleBulkReassign(confirmAction.userId, reassignToUserId);
+          }
+          setConfirmAction(null);
+          setReassignToUserId("");
+        }}
+      >
+        <Label htmlFor="bulk-reassign-target">New owner</Label>
+        <Select value={reassignToUserId} onValueChange={setReassignToUserId}>
+          <SelectTrigger id="bulk-reassign-target" aria-label="New owner for the open deals">
+            <SelectValue placeholder="Choose the new owner…" />
+          </SelectTrigger>
+          <SelectContent>
+            {members
+              .filter(
+                (member) =>
+                  member.userId !==
+                    (confirmAction?.kind === "bulk-reassign" ? confirmAction.userId : "") &&
+                  member.status === "active",
+              )
+              .map((member) => (
+                <SelectItem key={member.userId} value={member.userId}>
+                  {member.fullName}
+                  {member.role === "owner" ? " (owner)" : ""}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmAction?.kind === "revoke"}

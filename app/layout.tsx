@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 
 import "./globals.css";
@@ -28,8 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans">
-        <AuthProvider>{children}</AuthProvider>
-        <Toaster />
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

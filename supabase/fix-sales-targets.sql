@@ -47,8 +47,17 @@ begin
     execute 'update public.sales_targets set period = target_period where (period is null or period = ''monthly'') and target_period is not null';
     -- Reverse-sync + relax: old tables often define target_period NOT NULL
     -- without a default, so canonical-only inserts fail with 23502.
-    execute 'update public.sales_targets set target_period = period where target_period is null and period is not null';
-    execute 'update public.sales_targets set target_period = ''monthly'' where target_period is null';
+    -- If a live database already migrated target_period to a date column, the
+    -- text assignment above is ill-typed; wrap each mutating DML/DDL in its
+    -- own BEGIN/EXCEPTION so a type mismatch does not abort the migration.
+    begin
+      execute 'update public.sales_targets set target_period = period where target_period is null and period is not null';
+    exception when others then null;
+    end;
+    begin
+      execute 'update public.sales_targets set target_period = ''monthly'' where target_period is null';
+    exception when others then null;
+    end;
     begin
       execute 'alter table public.sales_targets alter column target_period drop not null';
     exception when others then null;

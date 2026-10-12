@@ -1,5 +1,8 @@
 "use client";
 
+import { useChartColors } from "@/lib/use-chart-colors";
+import type { ChartColors } from "@/lib/use-chart-colors";
+
 import * as React from "react";
 import {
   Area,
@@ -18,19 +21,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { ChartRangeKey } from "@/lib/types";
 import { formatCurrency, formatCurrencyAxis, formatCurrencyCompact } from "@/lib/utils";
 
-const CHART_COLORS = {
-  pipeline: "#2563EB",
-  won: "#059669",
-} as const;
-
 interface ChartTooltipProps {
   active?: boolean;
   label?: string | number;
   currency: "NGN" | "USD";
   payload?: { dataKey?: string | number; value?: number; name?: string }[];
+  colors: ChartColors;
 }
 
-function ChartTooltip({ active, payload, label, currency }: ChartTooltipProps) {
+function ChartTooltip({ active, payload, label, currency, colors }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
 
   return (
@@ -44,7 +43,7 @@ function ChartTooltip({ active, payload, label, currency }: ChartTooltipProps) {
                 className="h-2 w-2 rounded-full"
                 style={{
                   backgroundColor:
-                    entry.dataKey === "won" ? CHART_COLORS.won : CHART_COLORS.pipeline,
+                    entry.dataKey === "won" ? colors.won : colors.pipeline,
                 }}
                 aria-hidden="true"
               />
@@ -90,6 +89,8 @@ export function PipelineChart({ className }: { className?: string }) {
   const conversion =
     totals.pipeline > 0 ? ((totals.won / totals.pipeline) * 100).toFixed(1) : "0.0";
 
+  const colors = useChartColors();
+
   if (isLoading) {
     return (
       <Card className={className}>
@@ -124,7 +125,7 @@ export function PipelineChart({ className }: { className?: string }) {
             <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
               Closed
             </p>
-            <p className="text-sm font-semibold tabular text-emerald-600">
+            <p className="text-sm font-semibold tabular">
               {formatCurrencyCompact(totals.won, currency)}
             </p>
           </div>
@@ -141,24 +142,24 @@ export function PipelineChart({ className }: { className?: string }) {
         <div className="h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#E2E8F0" />
+              <CartesianGrid strokeDasharray="4 4" vertical={false} stroke={colors.grid} />
               <XAxis
                 dataKey="month"
                 tickLine={false}
                 axisLine={false}
                 dy={8}
-                tick={{ fill: "#64748B", fontSize: 12 }}
+                tick={{ fill: colors.tick, fontSize: 12 }}
               />
               <YAxis
                 tickFormatter={(value) => formatCurrencyAxis(value, currency)}
                 tickLine={false}
                 axisLine={false}
                 width={56}
-                tick={{ fill: "#64748B", fontSize: 12 }}
+                tick={{ fill: colors.tick, fontSize: 12 }}
               />
               <Tooltip
-                content={<ChartTooltip currency={currency} />}
-                cursor={{ stroke: "#CBD5E1", strokeWidth: 1, strokeDasharray: "4 4" }}
+                content={<ChartTooltip currency={currency} colors={colors} />}
+                cursor={{ stroke: colors.grid, strokeWidth: 1, strokeDasharray: "4 4" }}
               />
               <Legend
                 verticalAlign="top"
@@ -166,15 +167,15 @@ export function PipelineChart({ className }: { className?: string }) {
                 height={32}
                 iconType="circle"
                 iconSize={8}
-                wrapperStyle={{ fontSize: 12, color: "#64748B", paddingBottom: 8 }}
+                wrapperStyle={{ fontSize: 12, color: colors.tick, paddingBottom: 8 }}
               />
               <Area
                 type="monotone"
                 dataKey="pipeline"
                 name="Pipeline value"
-                stroke={CHART_COLORS.pipeline}
+                stroke={colors.pipeline}
                 strokeWidth={2}
-                fill={CHART_COLORS.pipeline}
+                fill={colors.pipeline}
                 fillOpacity={0.12}
                 activeDot={{ r: 4, strokeWidth: 2 }}
               />
@@ -182,9 +183,9 @@ export function PipelineChart({ className }: { className?: string }) {
                 type="monotone"
                 dataKey="won"
                 name="Closed revenue"
-                stroke={CHART_COLORS.won}
+                stroke={colors.won}
                 strokeWidth={2}
-                fill={CHART_COLORS.won}
+                fill={colors.won}
                 fillOpacity={0.12}
                 activeDot={{ r: 4, strokeWidth: 2 }}
               />

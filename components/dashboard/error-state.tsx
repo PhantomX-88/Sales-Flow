@@ -18,9 +18,9 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-rose-200 bg-rose-50/50 px-6 py-16 text-center"
+      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-danger/30 bg-danger-soft/20 px-6 py-16 text-center"
     >
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full icon-soft-danger">
         <TriangleAlert className="h-5 w-5" aria-hidden="true" />
       </span>
       <div className="space-y-1">

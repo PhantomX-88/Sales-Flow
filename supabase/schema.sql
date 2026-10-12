@@ -953,8 +953,18 @@ begin
     -- "period" column then fails with 23502 (null value in target_period).
     -- Backfill NULLs from period (fallback 'monthly'), then drop the NOT NULL
     -- requirement and give it a default so canonical-only inserts succeed.
-    execute 'update public.sales_targets set target_period = period where target_period is null and period is not null';
-    execute 'update public.sales_targets set target_period = ''monthly'' where target_period is null';
+    -- If a live database already migrated target_period to a date column,
+    -- the text assignment above is ill-typed; fall back to the canonical
+    -- text column and ignore type mismatches here (the column will be
+    -- renamed away in the elsif branch below when possible).
+    begin
+      execute 'update public.sales_targets set target_period = period where target_period is null and period is not null';
+    exception when others then null;
+    end;
+    begin
+      execute 'update public.sales_targets set target_period = ''monthly'' where target_period is null';
+    exception when others then null;
+    end;
     begin
       execute 'alter table public.sales_targets alter column target_period drop not null';
     exception when others then null;
@@ -1501,4 +1511,737 @@ create policy activities_update on public.activities
 create policy activities_delete on public.activities
   for delete using (public.is_organization_owner(organization_id));
 
+-- ============================================================
+-- PHASE 4 — Reassignment (owner only, history preserved) ------
+-- ============================================================
+
+-- Every ownership change is recorded here. Rows are never updated or
+-- deleted — reassignment history stays intact for the life of the deal.
+create table if not exists public.opportunity_history (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  opportunity_id uuid not null references public.opportunities(id) on delete cascade,
+  old_owner_id uuid references auth.users(id) on delete set null,
+  new_owner_id uuid references auth.users(id) on delete set null,
+  actor_id uuid references auth.users(id) on delete set null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists opportunity_history_opportunity_idx
+  on public.opportunity_history (opportunity_id, created_at desc);
+create index if not exists opportunity_history_organization_idx
+  on public.opportunity_history (organization_id, created_at desc);
+
+alter table public.opportunity_history enable row level security;
+
+-- Owners read their org's history; sub-users read history of deals they own
+-- (they can see their deal was reassigned away from them).
+do $$
+declare
+  existing_policy record;
+begin
+  for existing_policy in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'opportunity_history'
+  loop
+    execute format('drop policy %I on public.opportunity_history', existing_policy.policyname);
+  end loop;
+end;
+$$;
+
+create policy opportunity_history_select on public.opportunity_history
+  for select using (
+    public.is_organization_owner(organization_id)
+    or (
+      (old_owner_id = auth.uid() or new_owner_id = auth.uid())
+      and public.is_organization_member(organization_id)
+    )
+  );
+
+revoke insert, update, delete on public.opportunity_history from public, anon, authenticated;
+
+-- In-app notification for the new owner, written by the RPCs below.
+-- Reuses activities (type 'note') so the existing ActivityFeed renders it;
+-- the text prefix makes it filterable.
+create or replace function public.notify_reassignment(
+  target_opportunity_id uuid,
+  target_organization_id uuid,
+  from_owner_id uuid,
+  to_owner_id uuid,
+  actor uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_company text;
+  v_actor_name text;
+begin
+  select company into v_company from public.opportunities where id = target_opportunity_id;
+  select coalesce(nullif(btrim(full_name), ''), 'The owner')
+    into v_actor_name
+  from public.profiles where id = actor;
+
+  insert into public.activities (organization_id, opportunity_id, type, text)
+  values (
+    target_organization_id,
+    target_opportunity_id,
+    'note',
+    format(
+      'Reassigned to you: %s was moved from %s to you by %s.',
+      coalesce(v_company, 'An opportunity'),
+      coalesce(
+        (select coalesce(nullif(btrim(full_name), ''), 'a former owner') from public.profiles where id = from_owner_id),
+        'a former owner'
+      ),
+      v_actor_name
+    )
+  );
+end;
+$$;
+
+revoke all on function public.notify_reassignment(uuid, uuid, uuid, uuid, uuid) from public, anon, authenticated;
+
+-- Reassign one opportunity (owner only). Idempotent: reassigning to the
+-- current owner is a no-op that still returns the opportunity id.
+create or replace function public.reassign_opportunity(
+  opportunity_id uuid,
+  new_owner_id uuid
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  v_opportunity public.opportunities%rowtype;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+  if new_owner_id is null then
+    raise exception 'A new owner is required.';
+  end if;
+
+  select * into v_opportunity
+  from public.opportunities
+  where id = opportunity_id
+  for update;
+
+  if not found then
+    raise exception 'Opportunity not found.';
+  end if;
+
+  if not public.is_organization_owner(v_opportunity.organization_id) then
+    raise exception 'Only an organization owner can reassign opportunities.';
+  end if;
+
+  if new_owner_id = v_opportunity.owner_id then
+    return v_opportunity.id;
+  end if;
+
+  if not exists (
+    select 1 from public.organization_members
+    where organization_id = v_opportunity.organization_id
+      and user_id = new_owner_id
+      and status = 'active'
+  ) then
+    raise exception 'The new owner must be an active member of the organization.';
+  end if;
+
+  update public.opportunities
+  set owner_id = new_owner_id,
+      owner = coalesce(
+        (select coalesce(nullif(btrim(full_name), ''), 'Team member') from public.profiles where id = new_owner_id),
+        'Team member'
+      ),
+      updated_at = now()
+  where id = v_opportunity.id;
+
+  insert into public.opportunity_history
+    (organization_id, opportunity_id, old_owner_id, new_owner_id, actor_id)
+  values
+    (v_opportunity.organization_id, v_opportunity.id, v_opportunity.owner_id, new_owner_id, caller_id);
+
+  perform public.notify_reassignment(
+    v_opportunity.id, v_opportunity.organization_id, v_opportunity.owner_id, new_owner_id, caller_id
+  );
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    v_opportunity.organization_id,
+    caller_id,
+    'opportunity.reassigned',
+    'opportunity',
+    v_opportunity.id,
+    jsonb_build_object('from_owner', v_opportunity.owner_id, 'to_owner', new_owner_id)
+  );
+
+  return v_opportunity.id;
+end;
+$$;
+
+revoke all on function public.reassign_opportunity(uuid, uuid) from public, anon;
+grant execute on function public.reassign_opportunity(uuid, uuid) to authenticated;
+
+-- Bulk reassignment (owner only): moves every open opportunity from one
+-- member to another. Closed deals keep their owner — history must reflect
+-- who actually closed them. Returns the number of deals moved.
+create or replace function public.bulk_reassign(
+  from_user_id uuid,
+  to_user_id uuid
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  v_organization_id uuid;
+  v_moved integer := 0;
+  v_deal record;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+  if from_user_id = to_user_id then
+    raise exception 'Source and target owner must be different members.';
+  end if;
+
+  select organization_id into v_organization_id
+  from public.organization_members
+  where user_id = from_user_id and status = 'active'
+  limit 1;
+
+  if v_organization_id is null
+    or not public.is_organization_owner(v_organization_id) then
+    raise exception 'Only an organization owner can reassign opportunities.';
+  end if;
+
+  if not exists (
+    select 1 from public.organization_members
+    where organization_id = v_organization_id
+      and user_id = to_user_id
+      and status = 'active'
+  ) then
+    raise exception 'The new owner must be an active member of the organization.';
+  end if;
+
+  for v_deal in
+    select id, owner_id
+    from public.opportunities
+    where organization_id = v_organization_id
+      and owner_id = from_user_id
+      and stage not in ('Closed Won', 'Closed Lost')
+    for update
+  loop
+    update public.opportunities
+    set owner_id = to_user_id,
+        owner = coalesce(
+          (select coalesce(nullif(btrim(full_name), ''), 'Team member') from public.profiles where id = to_user_id),
+          'Team member'
+        ),
+        updated_at = now()
+    where id = v_deal.id;
+
+    insert into public.opportunity_history
+      (organization_id, opportunity_id, old_owner_id, new_owner_id, actor_id)
+    values
+      (v_organization_id, v_deal.id, v_deal.owner_id, to_user_id, caller_id);
+
+    perform public.notify_reassignment(
+      v_deal.id, v_organization_id, v_deal.owner_id, to_user_id, caller_id
+    );
+
+    v_moved := v_moved + 1;
+  end loop;
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    v_organization_id,
+    caller_id,
+    'opportunity.bulk_reassigned',
+    'organization_member',
+    from_user_id,
+    jsonb_build_object('to_owner', to_user_id, 'moved', v_moved)
+  );
+
+  return v_moved;
+end;
+$$;revoke all on function public.bulk_reassign(uuid, uuid) from public, anon;
+grant execute on function public.bulk_reassign(uuid, uuid) to authenticated;
+
+-- ============================================================
+-- PHASE 5 — Deletion rules (soft delete + owner approval) -----
+-- ============================================================
+
+-- Soft-delete markers on opportunities. Data is never hard-deleted by the
+-- app: owners soft-delete, sub-users request, and a scheduled purge removes
+-- rows 30 days after deletion.
+alter table public.opportunities
+  add column if not exists deleted_at timestamptz,
+  add column if not exists deleted_by uuid references auth.users(id) on delete set null,
+  add column if not exists delete_reason text;
+
+create index if not exists opportunities_deleted_at_idx
+  on public.opportunities (organization_id, deleted_at);
+
+-- Sub-user deletion requests. One open (pending) request per opportunity;
+-- enforced by the partial unique index below.
+create table if not exists public.deletion_requests (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  opportunity_id uuid not null references public.opportunities(id) on delete cascade,
+  requested_by uuid not null references auth.users(id) on delete cascade,
+  reason text not null check (char_length(btrim(reason)) between 3 and 500),
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  reviewed_by uuid references auth.users(id) on delete set null,
+  review_comment text,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+
+create unique index if not exists deletion_requests_one_pending_per_opportunity_uidx
+  on public.deletion_requests (opportunity_id)
+  where status = 'pending';
+create index if not exists deletion_requests_organization_idx
+  on public.deletion_requests (organization_id, status, created_at desc);
+
+alter table public.deletion_requests enable row level security;
+
+do $$
+declare
+  existing_policy record;
+begin
+  for existing_policy in
+    select policyname from pg_policies
+    where schemaname = 'public' and tablename = 'deletion_requests'
+  loop
+    execute format('drop policy %I on public.deletion_requests', existing_policy.policyname);
+  end loop;
+end;
+$$;
+
+-- Members see the request if they can see the underlying opportunity:
+-- owners org-wide, sub-users only on their own deals. All writes below go
+-- through RPCs, never direct inserts.
+create policy deletion_requests_select on public.deletion_requests
+  for select using (
+    public.is_organization_owner(organization_id)
+    or (
+      requested_by = auth.uid()
+      and public.is_organization_member(organization_id)
+    )
+  );
+
+revoke insert, update, delete on public.deletion_requests from public, anon, authenticated;
+
+-- ==============================================
+-- Sub-user: request deletion of a deal they created AND own.
+-- ==============================================
+create or replace function public.request_deletion(
+  target_opportunity_id uuid,
+  reason text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  v_opportunity public.opportunities%rowtype;
+  v_request_id uuid;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+  if reason is null or char_length(btrim(reason)) < 3 or char_length(btrim(reason)) > 500 then
+    raise exception 'A deletion reason of 3 to 500 characters is required.';
+  end if;
+
+  select * into v_opportunity
+  from public.opportunities
+  where id = target_opportunity_id
+  for update;
+
+  if not found then
+    raise exception 'Opportunity not found.';
+  end if;
+
+  if v_opportunity.deleted_at is not null then
+    raise exception 'This opportunity is already deleted.';
+  end if;
+
+  if v_opportunity.created_by is null
+    or v_opportunity.created_by <> caller_id
+    or v_opportunity.owner_id is null
+    or v_opportunity.owner_id <> caller_id then
+    raise exception 'You can only request deletion of opportunities you created and currently own.';
+  end if;
+
+  -- One open request per opportunity: races fail on the partial unique index.
+  insert into public.deletion_requests (organization_id, opportunity_id, requested_by, reason)
+  values (v_opportunity.organization_id, v_opportunity.id, caller_id, btrim(reason))
+  returning id into v_request_id;
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    v_opportunity.organization_id,
+    caller_id,
+    'opportunity.deletion_requested',
+    'deletion_request',
+    v_request_id,
+    jsonb_build_object('opportunity_id', v_opportunity.id, 'reason', btrim(reason))
+  );
+
+  return v_request_id;
+end;
+$$;
+
+revoke all on function public.request_deletion(uuid, text) from public, anon;
+grant execute on function public.request_deletion(uuid, text) to authenticated;
+
+-- ==============================================
+-- Owner: approve a pending request — soft-deletes atomically.
+-- ==============================================
+create or replace function public.approve_deletion_request(
+  target_request_id uuid,
+  review_comment text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  v_request record;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+
+  select * into v_request
+  from public.deletion_requests
+  where id = target_request_id
+  for update;
+
+  if not found then
+    raise exception 'Deletion request not found.';
+  end if;
+  if not public.is_organization_owner(v_request.organization_id) then
+    raise exception 'Only an organization owner can review deletion requests.';
+  end if;
+  if v_request.status <> 'pending' then
+    raise exception 'This deletion request was already reviewed.';
+  end if;
+
+  update public.deletion_requests
+  set status = 'approved',
+      reviewed_by = caller_id,
+      reviewed_at = now(),
+      review_comment = review_comment
+  where id = v_request.id;
+
+  update public.opportunities
+  set deleted_at = now(),
+      deleted_by = caller_id,
+      delete_reason = v_request.reason
+  where id = v_request.opportunity_id and deleted_at is null;
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    v_request.organization_id,
+    caller_id,
+    'opportunity.deletion_approved',
+    'deletion_request',
+    v_request.id,
+    jsonb_build_object(
+      'opportunity_id', v_request.opportunity_id,
+      'requested_by', v_request.requested_by,
+      'comment', review_comment
+    )
+  );
+end;
+$$;
+
+revoke all on function public.approve_deletion_request(uuid, text) from public, anon;
+grant execute on function public.approve_deletion_request(uuid, text) to authenticated;
+
+-- ==============================================
+-- Owner: reject a pending request — the deal stays normal.
+-- ==============================================
+create or replace function public.reject_deletion_request(
+  target_request_id uuid,
+  review_comment text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  v_request record;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+  if review_comment is null or char_length(btrim(review_comment)) < 3 then
+    raise exception 'A review comment of at least 3 characters is required when rejecting.';
+  end if;
+
+  select * into v_request
+  from public.deletion_requests
+  where id = target_request_id
+  for update;
+
+  if not found then
+    raise exception 'Deletion request not found.';
+  end if;
+  if not public.is_organization_owner(v_request.organization_id) then
+    raise exception 'Only an organization owner can review deletion requests.';
+  end if;
+  if v_request.status <> 'pending' then
+    raise exception 'This deletion request was already reviewed.';
+  end if;
+
+  update public.deletion_requests
+  set status = 'rejected',
+      reviewed_by = caller_id,
+      reviewed_at = now(),
+      review_comment = btrim(review_comment)
+  where id = v_request.id;
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    v_request.organization_id,
+    caller_id,
+    'opportunity.deletion_rejected',
+    'deletion_request',
+    v_request.id,
+    jsonb_build_object(
+      'opportunity_id', v_request.opportunity_id,
+      'requested_by', v_request.requested_by,
+      'comment', btrim(review_comment)
+    )
+  );
+end;
+$$;
+
+revoke all on function public.reject_deletion_request(uuid, text) from public, anon;
+grant execute on function public.reject_deletion_request(uuid, text) to authenticated;
+
+-- ==============================================
+-- Owner: direct soft delete (no approval needed, reason required).
+-- Restorable for 30 days, then purged by scheduled job.
+-- ==============================================
+create or replace function public.soft_delete_opportunity(
+  target_opportunity_id uuid,
+  reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  v_opportunity public.opportunities%rowtype;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+  if reason is null or char_length(btrim(reason)) < 3 or char_length(btrim(reason)) > 500 then
+    raise exception 'A deletion reason of 3 to 500 characters is required.';
+  end if;
+
+  select * into v_opportunity
+  from public.opportunities
+  where id = target_opportunity_id
+  for update;
+
+  if not found then
+    raise exception 'Opportunity not found.';
+  end if;
+  if not public.is_organization_owner(v_opportunity.organization_id) then
+    raise exception 'Only an organization owner can delete opportunities.';
+  end if;
+  if v_opportunity.deleted_at is not null then
+    raise exception 'This opportunity is already deleted.';
+  end if;
+
+  -- Auto-resolve any open request — the owner already decided.
+  update public.deletion_requests
+  set status = 'rejected',
+      reviewed_by = caller_id,
+      reviewed_at = now(),
+      review_comment = 'Superseded by direct owner deletion.'
+  where opportunity_id = v_opportunity.id and status = 'pending';
+
+  update public.opportunities
+  set deleted_at = now(),
+      deleted_by = caller_id,
+      delete_reason = btrim(reason)
+  where id = v_opportunity.id and deleted_at is null;
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    v_opportunity.organization_id,
+    caller_id,
+    'opportunity.soft_deleted',
+    'opportunity',
+    v_opportunity.id,
+    jsonb_build_object('reason', btrim(reason))
+  );
+end;
+$$;
+
+revoke all on function public.soft_delete_opportunity(uuid, text) from public, anon;
+grant execute on function public.soft_delete_opportunity(uuid, text) to authenticated;
+
+-- ==============================================
+-- Owner: restore within the 30-day window.
+-- ==============================================
+create or replace function public.restore_opportunity(
+  target_opportunity_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  caller_id uuid := auth.uid();
+  v_opportunity public.opportunities%rowtype;
+begin
+  if caller_id is null then
+    raise exception 'Not authenticated.';
+  end if;
+
+  select * into v_opportunity
+  from public.opportunities
+  where id = target_opportunity_id
+  for update;
+
+  if not found then
+    raise exception 'Opportunity not found.';
+  end if;
+  if not public.is_organization_owner(v_opportunity.organization_id) then
+    raise exception 'Only an organization owner can restore opportunities.';
+  end if;
+  if v_opportunity.deleted_at is null then
+    raise exception 'This opportunity is not deleted.';
+  end if;
+  if v_opportunity.deleted_at < now() - interval '30 days' then
+    raise exception 'The 30-day restoration window has passed.';
+  end if;
+
+  update public.opportunities
+  set deleted_at = null,
+      deleted_by = null,
+      delete_reason = null
+  where id = v_opportunity.id;
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    v_opportunity.organization_id,
+    caller_id,
+    'opportunity.restored',
+    'opportunity',
+    v_opportunity.id,
+    jsonb_build_object('was_deleted_by', v_opportunity.deleted_by)
+  );
+end;
+$$;
+
+revoke all on function public.restore_opportunity(uuid) from public, anon;
+grant execute on function public.restore_opportunity(uuid) to authenticated;
+
+-- ==============================================
+-- Scheduled purge: hard-deletes opportunities soft-deleted more than
+-- 30 days ago (and their cascading activities). Runs via pg_cron or Vercel
+-- Cron hitting a service-role route; safe to run any time.
+-- ==============================================
+create or replace function public.purge_expired_soft_deletes()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_purged integer := 0;
+begin
+  -- Collect metadata first (the rows are gone after the CTE runs).
+  create temp table purge_targets on commit drop as
+    select id, organization_id
+    from public.opportunities
+    where deleted_at is not null
+      and deleted_at < now() - interval '30 days';
+
+  select count(*) into v_purged from purge_targets;
+
+  if v_purged > 0 then
+    delete from public.opportunities where id in (select id from purge_targets);
+
+    insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+    select
+      organization_id,
+      null,
+      'opportunity.purged',
+      'opportunity',
+      id,
+      jsonb_build_object('purged_at', now())
+    from purge_targets;
+  end if;
+
+  return v_purged;
+end;
+$$;
+
+revoke all on function public.purge_expired_soft_deletes() from public, anon;
+grant execute on function public.purge_expired_soft_deletes() to authenticated;
+grant execute on function public.purge_expired_soft_deletes() to service_role;
+
+-- ==============================================
+-- RLS on opportunities: sub-users must not see (or un-delete) soft-deleted
+-- rows — their policy gains an explicit `deleted_at is null` check. Owners
+-- intentionally keep seeing deleted rows: the approvals queue, restore and
+-- trash views run through owner-verified RPCs, so exposure is safe.
+-- ==============================================
+do $$
+begin
+  execute 'drop policy if exists opportunities_sales_rep_access on public.opportunities';
+  execute 'create policy opportunities_sales_rep_access on public.opportunities
+    for all using (
+      owner_id = auth.uid()
+      and deleted_at is null
+      and exists (
+        select 1 from public.organization_members
+        where organization_id = opportunities.organization_id
+          and user_id = auth.uid()
+          and role = ''sales_rep''
+          and status = ''active''
+      )
+    )
+    with check (
+      owner_id = auth.uid()
+      and exists (
+        select 1 from public.organization_members
+        where organization_id = opportunities.organization_id
+          and user_id = auth.uid()
+          and role = ''sales_rep''
+          and status = ''active''
+      )
+    )';
+end;
+$$;
+
 notify pgrst, 'reload schema';
+

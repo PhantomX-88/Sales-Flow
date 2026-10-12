@@ -124,7 +124,7 @@ export function InviteDialog({ open, onOpenChange, organizationId, onInvited }: 
                 </Button>
               </div>
               {result.warning ? (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <p className="rounded-lg border soft-outline-warning px-3 py-3 text-xs" style={{ color: "hsl(var(--warning))" }}>
                   {result.warning}
                 </p>
               ) : null}
@@ -196,7 +196,7 @@ export function InviteDialog({ open, onOpenChange, organizationId, onInvited }: 
                 </div>
               </div>
               {error ? (
-                <p role="alert" className="text-xs font-medium text-rose-600">
+                <p role="alert" className="text-xs font-medium on-danger">
                   {error}
                 </p>
               ) : null}

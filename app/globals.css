@@ -51,11 +51,18 @@
     --sidebar-accent: 214 95% 96%;
     --sidebar-border: 214 32% 91%;
 
+    /* Chart palette (light) — mirrors the dark values defined in .dark */
+    --chart-grid: 214 32% 91%;
+    --chart-tick: 215 16% 47%;
+
+    --chart-pipeline: 221 83% 53%; /* #2563EB — matches --primary */
+    --chart-won: 160 84% 39%; /* #059669 — matches --success */
+
     --radius: 0.75rem;
   }
 
-  /* Dark mode is intentionally not shipped in v1, but every component reads
-     these tokens so a dark theme can be enabled without rewriting markup. */
+  /* Dark theme tokens. Phase 6: shipped — light/dark/system toggle in the
+     header (next-themes), persisted per browser via localStorage. */
   .dark {
     --background: 222 47% 8%;
     --foreground: 210 40% 98%;
@@ -99,6 +106,13 @@
     --sidebar-foreground: 210 40% 98%;
     --sidebar-accent: 217 33% 17%;
     --sidebar-border: 217 33% 20%;
+
+    /* Chart palette (Recharts reads these at render time) */
+    --chart-grid: 217 33% 22%;
+    --chart-tick: 215 20% 65%;
+
+    --chart-pipeline: 217 91% 60%; /* #4F83F1 */
+    --chart-won: 160 62% 47%; /* #10B981 */
   }
 
   * {
@@ -130,12 +144,173 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full border-[3px] border-solid border-transparent bg-slate-300 bg-clip-content;
+    @apply rounded-full border-[3px] border-solid border-transparent bg-clip-content;
+    background-color: hsl(var(--muted-foreground) / 0.35);
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-400 bg-clip-content;
+    background-color: hsl(var(--muted-foreground) / 0.5);
   }
+
+  /* ── Phase 6 soft-surface tokens: dark-compatible chips used by
+     activity feeds, badges, metric cards, sidebar presence pills. ── */
+  .soft-danger {
+    @apply rounded-full px-1.5 py-0.5 text-2xs font-semibold;
+    background-color: hsl(var(--danger-soft) / 0.6);
+    color: hsl(var(--destructive));
+  }
+
+  .soft-warning {
+    @apply rounded-full px-1.5 py-0.5 text-2xs font-semibold;
+    background-color: hsl(var(--warning-soft) / 0.6);
+    color: hsl(var(--warning));
+  }
+
+  .soft-success {
+    @apply rounded-full px-1.5 py-0.5 text-2xs font-semibold;
+    background-color: hsl(var(--success-soft) / 0.6);
+    color: hsl(var(--success));
+  }
+
+  .soft-primary {
+    @apply rounded-full px-1.5 py-0.5 text-2xs font-semibold;
+    background-color: hsl(var(--primary-soft) / 0.6);
+    color: hsl(var(--primary));
+  }
+
+  .soft-outline-danger {
+    @apply rounded-full border px-1.5 py-0.5 text-2xs font-medium;
+    border-color: hsl(var(--destructive) / 0.4);
+    background-color: hsl(var(--danger-soft) / 0.4);
+    color: hsl(var(--destructive));
+  }
+
+  .soft-outline-warning {
+    @apply rounded-full border px-1.5 py-0.5 text-2xs font-medium;
+    border-color: hsl(var(--warning) / 0.4);
+    background-color: hsl(var(--warning-soft) / 0.4);
+    color: hsl(var(--warning));
+  }
+
+  .soft-outline-success {
+    @apply rounded-full border px-1.5 py-0.5 text-2xs font-medium;
+    border-color: hsl(var(--success) / 0.4);
+    background-color: hsl(var(--success-soft) / 0.4);
+    color: hsl(var(--success));
+  }
+
+  .fill-primary {
+    background-color: hsl(var(--primary));
+  }
+
+  .fill-success {
+    background-color: hsl(var(--success));
+  }
+
+  .text-success {
+    color: hsl(var(--success));
+  }
+
+  .icon-soft-danger {
+    @apply rounded-full items-center justify-center;
+    background-color: hsl(var(--danger-soft) / 0.5);
+    color: hsl(var(--destructive));
+  }
+
+  .icon-soft-warning {
+    @apply rounded-full items-center justify-center;
+    background-color: hsl(var(--warning-soft) / 0.5);
+    color: hsl(var(--warning));
+  }
+
+  .icon-soft-success {
+    @apply rounded-full items-center justify-center;
+    background-color: hsl(var(--success-soft) / 0.5);
+    color: hsl(var(--success));
+  }
+
+  .icon-soft-primary {
+    @apply rounded-full items-center justify-center;
+    background-color: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+  }
+
+  .icon-soft-muted {
+    @apply rounded-full items-center justify-center;
+    background-color: hsl(var(--muted) / 0.4);
+    color: hsl(var(--muted-foreground));
+  }
+
+  .on-danger {
+    color: hsl(var(--destructive));
+  }
+
+  .on-warning {
+    color: hsl(var(--warning));
+  }
+
+  .on-success {
+    color: hsl(var(--success));
+  }
+
+  /* Progress indicator tint in the dark theme */
+  .dark .progress-tint-success {
+    background-color: hsl(var(--success));
+  }
+
+  .progress-tint-primary {
+    background-color: hsl(var(--primary));
+  }
+
+  /* Recharts stubs that used hardcoded light hex — now resolved via CSS vars.
+     Recharts reads these at render time, so both themes get a correct palette. */
+  .recharts-grid-line {
+    stroke: hsl(var(--chart-grid));
+  }
+
+  .recharts-axis-tick {
+    fill: hsl(var(--chart-tick));
+  }
+
+  .recharts-legend-text {
+    color: hsl(var(--chart-tick));
+  }
+
+  .recharts-tooltip-cursor {
+    stroke: hsl(var(--chart-grid));
+  }
+
+  /* ── Avatar initial-chip tones (Phase 6) ── */
+  .avatar-tone-primary {
+    background-color: hsl(var(--primary) / 0.12);
+    color: hsl(var(--primary));
+  }
+
+  .avatar-tone-success {
+    background-color: hsl(var(--success) / 0.12);
+    color: hsl(var(--success));
+  }
+
+  .avatar-tone-warning {
+    background-color: hsl(var(--warning) / 0.12);
+    color: hsl(var(--warning));
+  }
+
+  .avatar-tone-danger {
+    background-color: hsl(var(--danger) / 0.12);
+    color: hsl(var(--destructive));
+  }
+
+  .avatar-tone-secondary {
+    background-color: hsl(var(--secondary) / 0.5);
+    color: hsl(var(--secondary-foreground));
+  }
+
+  .avatar-tone-muted {
+    background-color: hsl(var(--muted) / 0.5);
+    color: hsl(var(--muted-foreground));
+  }
+
 
   ::-webkit-scrollbar-track {
     background: transparent;

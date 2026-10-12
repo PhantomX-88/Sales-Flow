@@ -43,6 +43,7 @@ import type {
   RepPerformance,
   SortKey,
   SortState,
+  DeletionRequest,
   TaskItem,
 } from "@/lib/types";
 import { buildCsv, daysBetween, downloadCsv, formatCurrency } from "@/lib/utils";
@@ -119,6 +120,9 @@ interface PipelineContextValue {
   accounts: AccountSummary[];
   tasks: TaskItem[];
 
+  /* Phase 5 — soft-deleted rows (owner trash view) */
+  deletedOpportunities: Opportunity[];
+
   /* navigation */
   view: DashboardView;
   setView: (view: DashboardView) => void;
@@ -148,7 +152,18 @@ interface PipelineContextValue {
   moveStage: (id: string, stage: PipelineStage) => void;
   markWon: (id: string) => void;
   markLost: (id: string) => void;
-  deleteOpportunity: (id: string) => void;
+  /* Phase 5 deletion flow */
+  deleteOpportunity: (id: string, reason?: string) => Promise<boolean>;
+  requestDeletion: (id: string, reason: string) => Promise<boolean>;
+  reviewDeletionRequest: (
+    requestId: string,
+    decision: "approve" | "reject",
+    comment?: string,
+  ) => Promise<boolean>;
+  restoreOpportunity: (id: string) => Promise<boolean>;
+  deletionRequests: DeletionRequest[];
+  pendingDeletionCount: number;
+  reassignOpportunity: (id: string, newOwnerId: string) => Promise<boolean>;
   addActivity: (
     opportunityId: string,
     type: ActivityType,
@@ -234,6 +249,10 @@ function fromOpportunityRow(row: Record<string, unknown>): Opportunity {
     probability: Number(row.probability),
     owner: String(row.owner),
     ownerId: row.owner_id ? String(row.owner_id) : undefined,
+    createdBy: row.created_by ? String(row.created_by) : undefined,
+    deletedAt: row.deleted_at ? String(row.deleted_at) : undefined,
+    deletedBy: row.deleted_by ? String(row.deleted_by) : undefined,
+    deleteReason: row.delete_reason ? String(row.delete_reason) : undefined,
     age: Number(row.age),
     expectedCloseDate: String(row.expected_close_date),
     createdDate: String(row.created_date),
@@ -284,6 +303,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   const organizationOwnerNames = organizationOwners.map((owner) => owner.name);
   const [opportunities, setOpportunities] = React.useState<Opportunity[]>([]);
   const [activities, setActivities] = React.useState<Activity[]>([]);
+  const [deletionRequests, setDeletionRequests] = React.useState<DeletionRequest[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [personalTarget, setPersonalTarget] = React.useState<{ amount: number; period: string } | null>(null);
 
@@ -327,7 +347,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       // Sentinel UUID keeps the query valid while userId is still null;
       // it never matches a real row.
       const targetUserId = userId ?? "00000000-0000-0000-0000-000000000000";
-      const [opportunitiesResult, activitiesResult, targetResult] = await Promise.all([
+      const [opportunitiesResult, activitiesResult, targetResult, deletionResult] = await Promise.all([
         opportunitiesQuery.order("created_at", { ascending: false }),
         supabase.from("activities").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
         supabase
@@ -336,13 +356,40 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
           .eq("organization_id", organizationId)
           .eq("user_id", targetUserId)
           .maybeSingle(),
+        // Phase 5: owners get the approvals queue; sub-users get their own
+        // request statuses ("Deletion pending" badge). RLS narrows rows.
+        supabase
+          .from("deletion_requests")
+          .select(
+            "id, opportunity_id, requested_by, reason, status, reviewed_by, review_comment, created_at, reviewed_at",
+          )
+          .eq("organization_id", organizationId)
+          .order("created_at", { ascending: false }),
       ]);
       if (!mounted) return;
       if (opportunitiesResult.error || activitiesResult.error) {
         toast({ title: "Could not load organization data.", description: "Check your Supabase tables and Row Level Security policies.", variant: "destructive" });
       } else {
-        setOpportunities((opportunitiesResult.data ?? []).map((row) => fromOpportunityRow(row as Record<string, unknown>)));
+        const loadedOpportunities = (opportunitiesResult.data ?? []).map((row) =>
+          fromOpportunityRow(row as Record<string, unknown>),
+        );
+        const companyNameById = new Map(loadedOpportunities.map((o) => [o.id, o.company]));
+        setOpportunities(loadedOpportunities);
         setActivities((activitiesResult.data ?? []).map((row) => fromActivityRow(row as Record<string, unknown>)));
+        setDeletionRequests(
+          ((deletionResult.data ?? []) as Record<string, unknown>[]).map((row) => ({
+            id: String(row.id),
+            opportunityId: String(row.opportunity_id),
+            opportunityCompany: companyNameById.get(String(row.opportunity_id)) ?? "Opportunity",
+            requestedBy: String(row.requested_by),
+            reason: String(row.reason ?? ""),
+            status: String(row.status ?? "pending") as DeletionRequest["status"],
+            reviewedBy: row.reviewed_by ? String(row.reviewed_by) : undefined,
+            reviewComment: row.review_comment ? String(row.review_comment) : undefined,
+            createdAt: String(row.created_at),
+            reviewedAt: row.reviewed_at ? String(row.reviewed_at) : undefined,
+          })),
+        );
       }
       if (!targetResult.error) {
         setPersonalTarget(
@@ -416,9 +463,20 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   /* Derived data — every widget reads from these memoised selectors      */
   /* ------------------------------------------------------------------ */
 
+  /* Phase 5: soft-deleted rows stay out of every metric, list and chart.
+     Owners reach them through the Deleted-deals view. */
+  const liveOpportunities = React.useMemo(
+    () => opportunities.filter((opportunity) => !opportunity.deletedAt),
+    [opportunities],
+  );
+  const deletedOpportunities = React.useMemo(
+    () => opportunities.filter((opportunity) => Boolean(opportunity.deletedAt)),
+    [opportunities],
+  );
+
   const filtered = React.useMemo(
-    () => filterOpportunities(opportunities, searchQuery, filters, TODAY),
-    [opportunities, searchQuery, filters],
+    () => filterOpportunities(liveOpportunities, searchQuery, filters, TODAY),
+    [liveOpportunities, searchQuery, filters],
   );
 
   const sorted = React.useMemo(
@@ -439,19 +497,34 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     [sorted, safePage, settings.pageSize],
   );
 
-  const metrics = React.useMemo(() => computeMetrics(opportunities, TODAY), [opportunities]);
+  /* Phase 5: overlay "Deletion pending" onto visible rows without touching
+     the sort/filter pipeline. */
+  const pendingDeletionIds = React.useMemo(
+    () => new Set(deletionRequests.filter((r) => r.status === "pending").map((r) => r.opportunityId)),
+    [deletionRequests],
+  );
+  const visibleWithDeletionState = React.useMemo(
+    () =>
+      visible.map((opportunity) => ({
+        ...opportunity,
+        deletionPending: pendingDeletionIds.has(opportunity.id),
+      })),
+    [visible, pendingDeletionIds],
+  );
+
+  const metrics = React.useMemo(() => computeMetrics(liveOpportunities, TODAY), [liveOpportunities]);
   const monthlyRevenue = React.useMemo(
-    () => computeMonthlyRevenue(opportunities, TODAY),
-    [opportunities],
+    () => computeMonthlyRevenue(liveOpportunities, TODAY),
+    [liveOpportunities],
   );
   const kpis = React.useMemo(
-    () => computeKpis(opportunities, monthlyRevenue, TODAY, currency),
-    [currency, monthlyRevenue, opportunities],
+    () => computeKpis(liveOpportunities, monthlyRevenue, TODAY, currency),
+    [currency, monthlyRevenue, liveOpportunities],
   );
-  const funnel = React.useMemo(() => computeFunnel(opportunities), [opportunities]);
+  const funnel = React.useMemo(() => computeFunnel(liveOpportunities), [liveOpportunities]);
   const repPerformance = React.useMemo(
-    () => computeRepPerformance(opportunities, organizationOwners),
-    [opportunities, organizationOwners],
+    () => computeRepPerformance(liveOpportunities, organizationOwners),
+    [liveOpportunities, organizationOwners],
   );
   const forecast = React.useMemo(() => {
     const resolvedPeriod =
@@ -461,19 +534,19 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     const resolvedTarget =
       membershipRole === "sales_rep" && personalTarget ? personalTarget.amount : organization?.revenueTarget ?? 0;
     return computeForecast(
-      opportunities,
+      liveOpportunities,
       { amount: resolvedTarget, period: resolvedPeriod },
       TODAY,
     );
-  }, [membershipRole, opportunities, organization?.targetPeriod, organization?.revenueTarget, personalTarget]);
-  const accounts = React.useMemo(() => computeAccounts(opportunities, TODAY), [opportunities]);
+  }, [membershipRole, liveOpportunities, organization?.targetPeriod, organization?.revenueTarget, personalTarget]);
+  const accounts = React.useMemo(() => computeAccounts(liveOpportunities, TODAY), [liveOpportunities]);
   const tasks = React.useMemo(() => {
     const toneWeight = { danger: 0, warning: 1, info: 2 } as const;
     return [
-      ...computeTasks(opportunities, TODAY, currency),
+      ...computeTasks(liveOpportunities, TODAY, currency),
       ...computeReminders(activities, TODAY),
     ].sort((a, b) => toneWeight[a.tone] - toneWeight[b.tone]);
-  }, [activities, currency, opportunities]);
+  }, [activities, currency, liveOpportunities]);
 
   const selectedOpportunity = React.useMemo(
     () => opportunities.find((opportunity) => opportunity.id === selectedId) ?? null,
@@ -721,28 +794,223 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   const markWon = React.useCallback((id: string) => closeDeal(id, "Closed Won"), [closeDeal]);
   const markLost = React.useCallback((id: string) => closeDeal(id, "Closed Lost"), [closeDeal]);
 
-  const deleteOpportunity = React.useCallback(
-    async (id: string) => {
-      if (!organizationId) return;
+  /* ------------------------------------------------------------------ */
+  /* Phase 4 — reassignment via the reassign_opportunity RPC.            */
+  /* ------------------------------------------------------------------ */
+
+  const reassignOpportunity = React.useCallback(
+    async (id: string, newOwnerId: string) => {
+      if (!organizationId || !newOwnerId) return false;
       const existing = opportunities.find((opportunity) => opportunity.id === id);
-      const { error } = await getSupabaseClient()
-        .from("opportunities")
-        .delete()
-        .eq("id", id)
-        .eq("organization_id", organizationId);
+      const { data, error } = await getSupabaseClient().rpc("reassign_opportunity", {
+        opportunity_id: id,
+        new_owner_id: newOwnerId,
+      });
+      if (error) {
+        toast({
+          title: "Opportunity could not be reassigned.",
+          description: error.message,
+          variant: "destructive",
+        });
+        return false;
+      }
+      if (data) {
+        // The RPC resolves the display name server-side; refresh the row
+        // fields the UI shows without clobbering the rest.
+        setOpportunities((current) =>
+          current.map((opportunity) =>
+            opportunity.id === id
+              ? { ...opportunity, ownerId: newOwnerId }
+              : opportunity,
+          ),
+        );
+      }
+      toast({
+        title: "Opportunity reassigned.",
+        description: existing?.company ?? "New owner notified in app.",
+        variant: "success",
+      });
+      return true;
+    },
+    [opportunities, organizationId],
+  );
+
+  /* ------------------------------------------------------------------ */
+  /* Phase 5 — soft deletion + deletion-request approval flow.           */
+  /* ------------------------------------------------------------------ */
+
+  const deleteOpportunity = React.useCallback(
+    async (id: string, reason?: string) => {
+      if (!organizationId) return false;
+      const trimmed = (reason ?? "").trim();
+      if (trimmed.length < 3) {
+        toast({
+          title: "A deletion reason is required.",
+          description: "Give at least 3 characters explaining why this deal is being deleted.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      const existing = opportunities.find((opportunity) => opportunity.id === id);
+      const { error } = await getSupabaseClient().rpc("soft_delete_opportunity", {
+        target_opportunity_id: id,
+        reason: trimmed,
+      });
       if (error) {
         toast({ title: "Opportunity could not be deleted.", description: error.message, variant: "destructive" });
-        return;
+        return false;
       }
-      setOpportunities((current) => current.filter((opportunity) => opportunity.id !== id));
+      const deletedAt = new Date().toISOString();
+      setOpportunities((current) =>
+        current.map((opportunity) =>
+          opportunity.id === id
+            ? { ...opportunity, deletedAt, deleteReason: trimmed }
+            : opportunity,
+        ),
+      );
+      setDeletionRequests((current) =>
+        current.map((request) =>
+          request.opportunityId === id && request.status === "pending"
+            ? { ...request, status: "rejected" as const, reviewComment: "Superseded by direct owner deletion." }
+            : request,
+        ),
+      );
       setSelectedId((current) => (current === id ? null : current));
       toast({
         title: "Opportunity deleted.",
-        description: existing?.company ?? "Record removed",
+        description: `${existing?.company ?? "Record"} · restorable for 30 days from Settings > Deleted deals.`,
         variant: "destructive",
       });
+      return true;
     },
     [opportunities, organizationId],
+  );
+
+  const requestDeletion = React.useCallback(
+    async (id: string, reason: string) => {
+      if (!organizationId) return false;
+      const trimmed = (reason ?? "").trim();
+      if (trimmed.length < 3) {
+        toast({
+          title: "A deletion reason is required.",
+          description: "Explain in at least 3 characters why this deal should be removed.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      const existing = opportunities.find((opportunity) => opportunity.id === id);
+      const { data: requestId, error } = await getSupabaseClient().rpc("request_deletion", {
+        target_opportunity_id: id,
+        reason: trimmed,
+      });
+      if (error) {
+        toast({ title: "Deletion request could not be submitted.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      // Optimistic queue entry with the REAL request id from the RPC;
+      // the next load re-syncs names/review state with the server.
+      setDeletionRequests((current) => [
+        {
+          id: String(requestId),
+          opportunityId: id,
+          opportunityCompany: existing?.company ?? "Opportunity",
+          requestedBy: userId ?? "",
+          reason: trimmed,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        },
+        ...current,
+      ]);
+      toast({
+        title: "Deletion request submitted.",
+        description: `${existing?.company ?? "The deal"} now shows "Deletion pending" until the owner reviews it.`,
+        variant: "success",
+      });
+      return true;
+    },
+    [opportunities, organizationId, userId],
+  );
+
+  const reviewDeletionRequest = React.useCallback(
+    async (requestId: string, decision: "approve" | "reject", comment?: string) => {
+      if (!organizationId) return false;
+      const target = deletionRequests.find((request) => request.id === requestId);
+      if (!target) return false;
+      if (decision === "reject" && (comment ?? "").trim().length < 3) {
+        toast({
+          title: "A review comment is required.",
+          description: "Explain why the request was rejected so the rep can see it.",
+          variant: "destructive",
+        });
+        return false;
+      }
+      const { error } = await getSupabaseClient().rpc(
+        decision === "approve" ? "approve_deletion_request" : "reject_deletion_request",
+        { target_request_id: requestId, review_comment: (comment ?? "").trim() || null },
+      );
+      if (error) {
+        toast({ title: "Could not review the deletion request.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      if (decision === "approve") {
+        const deletedAt = new Date().toISOString();
+        setOpportunities((current) =>
+          current.map((opportunity) =>
+            opportunity.id === target.opportunityId
+              ? { ...opportunity, deletedAt, deleteReason: target.reason }
+              : opportunity,
+          ),
+        );
+      }
+      setDeletionRequests((current) =>
+        current.map((request) =>
+          request.id === requestId
+            ? {
+                ...request,
+                status: decision === "approve" ? ("approved" as const) : ("rejected" as const),
+                reviewedAt: new Date().toISOString(),
+                reviewComment: comment?.trim() || undefined,
+              }
+            : request,
+        ),
+      );
+      toast({
+        title: decision === "approve" ? "Deletion approved." : "Deletion request rejected.",
+        description:
+          decision === "approve"
+            ? `${target.opportunityCompany} moved to deleted deals (restorable for 30 days).`
+            : `${target.opportunityCompany} stays in the pipeline.`,
+        variant: decision === "approve" ? "destructive" : "success",
+      });
+      return true;
+    },
+    [deletionRequests, organizationId],
+  );
+
+  const restoreOpportunity = React.useCallback(
+    async (id: string) => {
+      if (!organizationId) return false;
+      const { error } = await getSupabaseClient().rpc("restore_opportunity", {
+        target_opportunity_id: id,
+      });
+      if (error) {
+        toast({ title: "Opportunity could not be restored.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      setOpportunities((current) =>
+        current.map((opportunity) =>
+          opportunity.id === id ? { ...opportunity, deletedAt: undefined, deleteReason: undefined } : opportunity,
+        ),
+      );
+      toast({ title: "Opportunity restored.", description: "The deal is back in the live pipeline.", variant: "success" });
+      return true;
+    },
+    [organizationId],
+  );
+
+  const pendingDeletionCount = React.useMemo(
+    () => deletionRequests.filter((request) => request.status === "pending").length,
+    [deletionRequests],
   );
 
   const addActivity = React.useCallback(
@@ -852,7 +1120,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     setSort,
 
     filtered: sorted,
-    visible,
+    visible: visibleWithDeletionState,
     totalFiltered,
     page: safePage,
     setPage: setPageState,
@@ -864,6 +1132,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
 
     metrics,
     kpis,
+    deletedOpportunities,
     funnel,
     repPerformance,
     forecast,
@@ -896,6 +1165,12 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     markWon,
     markLost,
     deleteOpportunity,
+    requestDeletion,
+    reviewDeletionRequest,
+    restoreOpportunity,
+    deletionRequests,
+    pendingDeletionCount,
+    reassignOpportunity,
     addActivity,
     exportCsv,
 

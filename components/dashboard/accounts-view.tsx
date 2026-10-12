@@ -62,7 +62,7 @@ function AccountCard({ account }: { account: AccountSummary }) {
           <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
             Won value
           </p>
-          <p className="mt-0.5 text-sm font-semibold tabular text-emerald-600">
+          <p className="mt-0.5 text-sm font-semibold tabular on-success">
             {formatCurrency(account.wonValue, currency)}
           </p>
         </div>

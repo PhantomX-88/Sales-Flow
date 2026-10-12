@@ -1,12 +1,15 @@
 import { cn, initialsOf } from "@/lib/utils";
 
+/* Six visually distinct initial-chip tones. Each tone is expressed as a
+   CSS class so the same avatar reads correctly in both light and dark
+   themes (the underlying surface/foreground colors come from hsl(var(...))). */
 const TONES = [
-  "bg-blue-100 text-blue-700",
-  "bg-indigo-100 text-indigo-700",
-  "bg-emerald-100 text-emerald-700",
-  "bg-amber-100 text-amber-700",
-  "bg-sky-100 text-sky-700",
-  "bg-rose-100 text-rose-700",
+  "avatar-tone-primary",
+  "avatar-tone-success",
+  "avatar-tone-warning",
+  "avatar-tone-danger",
+  "avatar-tone-secondary",
+  "avatar-tone-muted",
 ];
 
 const SIZES = {

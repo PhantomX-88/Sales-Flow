@@ -28,6 +28,8 @@ export interface Opportunity {
    * legacy display column kept in sync by a Postgres trigger.
    */
   ownerId?: string;
+  /** Auth user who created the deal; drives sub-user deletion requests. */
+  createdBy?: string;
   /** Days since the opportunity was created, kept in sync with `createdDate`. */
   age: number;
   expectedCloseDate: string;
@@ -41,6 +43,26 @@ export interface Opportunity {
    * leave the probability untouched instead of snapping to the stage default.
    */
   probabilityOverridden?: boolean;
+  /** Soft-delete markers (Phase 5). `deletedAt` set means the row is trashed. */
+  deletedAt?: string;
+  deletedBy?: string;
+  deleteReason?: string;
+  /** True when an open deletion request exists for this deal. */
+  deletionPending?: boolean;
+}
+
+export interface DeletionRequest {
+  id: string;
+  opportunityId: string;
+  opportunityCompany: string;
+  requestedBy: string;
+  requestedByName?: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  reviewedBy?: string;
+  reviewComment?: string;
+  createdAt: string;
+  reviewedAt?: string;
 }
 
 export interface StageDefinition {
@@ -249,6 +271,7 @@ export type DashboardView =
   | "forecast"
   | "tasks"
   | "team"
+  | "approvals"
   | "settings";
 
 export interface OpportunityDraft {

@@ -59,8 +59,8 @@ export function OpportunityListCard({ opportunity }: OpportunityListCardProps) {
         <span
           className={cn(
             "inline-flex items-center gap-1",
-            tone === "danger" && "font-medium text-rose-600",
-            tone === "warning" && "font-medium text-amber-600",
+            tone === "danger" && "font-medium on-danger",
+            tone === "warning" && "font-medium on-warning",
           )}
         >
           <CalendarDays className="h-3 w-3" aria-hidden="true" />
@@ -120,8 +120,8 @@ export function KanbanCard({
         <div className="flex items-center justify-between text-2xs text-muted-foreground">
           <span
             className={cn(
-              tone === "danger" && "font-medium text-rose-600",
-              tone === "warning" && "font-medium text-amber-600",
+              tone === "danger" && "font-medium on-danger",
+              tone === "warning" && "font-medium on-warning",
             )}
           >
             {formatDateShort(opportunity.expectedCloseDate)}
@@ -133,9 +133,9 @@ export function KanbanCard({
             className={cn(
               "h-full rounded-full transition-all duration-300",
               opportunity.probability >= 85
-                ? "bg-emerald-500"
+                ? "fill-success"
                 : opportunity.probability >= 60
-                  ? "bg-blue-500"
+                  ? "fill-primary"
                   : opportunity.probability >= 30
                     ? "bg-sky-400"
                     : "bg-slate-300",

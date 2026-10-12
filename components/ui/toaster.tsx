@@ -13,8 +13,8 @@ const ICONS = {
 
 const ICON_TONES: Record<ToastVariant, string> = {
   default: "bg-primary/10 text-primary",
-  success: "bg-emerald-50 text-emerald-600",
-  destructive: "bg-rose-50 text-rose-600",
+  success: "icon-soft-success",
+  destructive: "icon-soft-danger",
 };
 
 const BORDER_TONES: Record<ToastVariant, string> = {

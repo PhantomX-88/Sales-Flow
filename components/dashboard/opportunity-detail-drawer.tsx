@@ -39,6 +39,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Textarea } from "@/components/ui/textarea";
 import { STAGE_ORDER } from "@/lib/pipeline-config";
 import type { ActivityType, PipelineStage } from "@/lib/types";
@@ -87,6 +88,7 @@ export function OpportunityDetailDrawer() {
     markWon,
     markLost,
     deleteOpportunity,
+    reassignOpportunity,
     activities,
     addActivity,
     today,
@@ -102,6 +104,31 @@ export function OpportunityDetailDrawer() {
   const [activityNextStep, setActivityNextStep] = React.useState("");
   const [activityDueDate, setActivityDueDate] = React.useState("");
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  /* Phase 4: owner-only reassignment picker state. */
+  const [teamMembers, setTeamMembers] = React.useState<{ userId: string; fullName: string }[]>([]);
+  const [reassignTo, setReassignTo] = React.useState("");
+
+  React.useEffect(() => {
+    if (membershipRole !== "owner") return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await getSupabaseClient()
+        .from("profiles")
+        .select("id, full_name")
+        .order("full_name", { ascending: true });
+      if (!cancelled && data) {
+        setTeamMembers(
+          (data as { id: string; full_name: string | null }[]).map((row) => ({
+            userId: row.id,
+            fullName: row.full_name?.trim() || "Team member",
+          })),
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [membershipRole]);
 
   React.useEffect(() => {
     setLoggingActivity(false);
@@ -109,6 +136,7 @@ export function OpportunityDetailDrawer() {
     setActivityType("note");
     setActivityNextStep("");
     setActivityDueDate("");
+    setReassignTo("");
   }, [selectedOpportunity?.id]);
 
   const opportunity = selectedOpportunity;
@@ -149,8 +177,8 @@ export function OpportunityDetailDrawer() {
                     <span>{opportunity.probability}% probability</span>
                     <span
                       className={cn(
-                        tone === "danger" && "font-medium text-rose-600",
-                        tone === "warning" && "font-medium text-amber-600",
+                        tone === "danger" && "font-medium on-danger",
+                        tone === "warning" && "font-medium on-warning",
                       )}
                     >
                       {isClosed
@@ -291,7 +319,7 @@ export function OpportunityDetailDrawer() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                        className="on-danger hover:bg-danger-soft/30 hover:text-danger-foreground"
                         onClick={() => setConfirmDelete(true)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -299,6 +327,42 @@ export function OpportunityDetailDrawer() {
                       </Button>
                     ) : null}
                   </div>
+
+                  {canDelete && teamMembers.length > 1 ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
+                      <span className="flex items-center gap-1.5 text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+                        <User className="h-3 w-3" aria-hidden="true" />
+                        Reassign to
+                      </span>
+                      <Select
+                        value={reassignTo}
+                        onValueChange={setReassignTo}
+                      >
+                        <SelectTrigger className="h-8 max-w-[11rem]" aria-label="New owner">
+                          <SelectValue placeholder="Choose member…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teamMembers
+                            .filter((member) => member.userId !== opportunity.ownerId)
+                            .map((member) => (
+                              <SelectItem key={member.userId} value={member.userId}>
+                                {member.fullName}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        disabled={!reassignTo}
+                        onClick={async () => {
+                          const done = await reassignOpportunity(opportunity.id, reassignTo);
+                          if (done) setReassignTo("");
+                        }}
+                      >
+                        Reassign
+                      </Button>
+                    </div>
+                  ) : null}
 
                   {isLoggingActivity ? (
                     <div className="mt-3 space-y-3 rounded-lg border border-border bg-muted/30 p-3.5">
@@ -395,7 +459,7 @@ export function OpportunityDetailDrawer() {
                       {timeline.map((activity) => (
                         <li key={activity.id} className="relative">
                           <span
-                            className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-primary"
+                            className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full fill-primary"
                             aria-hidden="true"
                           />
                           <p className="text-[13px] font-medium leading-snug">{activity.text}</p>

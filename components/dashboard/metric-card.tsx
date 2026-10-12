@@ -35,8 +35,8 @@ function TrendBadge({ trend }: { trend: TrendIndicator | null }) {
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-2xs font-semibold tabular",
-        isPositive && "border-emerald-200 bg-emerald-50 text-emerald-700",
-        isNegative && "border-rose-200 bg-rose-50 text-rose-700",
+        isPositive && "soft-outline-success",
+        isNegative && "soft-outline-danger",
         !isPositive && !isNegative && "border-border bg-muted/60 text-muted-foreground",
       )}
     >
@@ -57,7 +57,7 @@ export function MetricCard({
   return (
     <Card className="group p-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card-hover">
       <div className="flex items-start justify-between gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors duration-150 group-hover:bg-primary/15">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg icon-soft-primary transition-colors duration-150 group-hover:bg-primary/15">
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
         <TrendBadge trend={trend} />

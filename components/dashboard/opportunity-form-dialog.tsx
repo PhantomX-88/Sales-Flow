@@ -78,7 +78,7 @@ function Field({ label, htmlFor, error, hint, className, children }: FieldProps)
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {error ? (
-        <p id={`${htmlFor}-error`} role="alert" className="text-2xs font-medium text-rose-600">
+        <p id={`${htmlFor}-error`} role="alert" className="text-2xs font-medium on-danger">
           {error}
         </p>
       ) : hint ? (

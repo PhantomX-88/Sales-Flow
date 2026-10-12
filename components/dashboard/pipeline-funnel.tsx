@@ -80,14 +80,14 @@ export function PipelineFunnel({ className }: { className?: string }) {
                         className={cn(
                           "flex h-full items-center rounded-md px-2 text-2xs font-semibold text-white transition-all duration-300",
                           index === 0
-                            ? "bg-slate-400"
+                            ? "fill-primary"
                             : index === 1
-                              ? "bg-sky-500"
+                              ? "fill-sky-400"
                               : index === 2
-                                ? "bg-blue-600"
+                                ? "fill-blue-600"
                                 : index === 3
-                                  ? "bg-indigo-600"
-                                  : "bg-emerald-600",
+                                  ? "fill-indigo-600"
+                                  : "fill-success",
                         )}
                         style={{ width: `${width}%` }}
                       >

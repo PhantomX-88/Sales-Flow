@@ -15,6 +15,8 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,12 +37,30 @@ interface OpportunityActionsProps {
 }
 
 export function OpportunityActions({ opportunity, align = "end" }: OpportunityActionsProps) {
-  const { openOpportunity, openEditDialog, moveStage, markWon, markLost, deleteOpportunity } =
-    usePipeline();
-  const { membershipRole } = useAuth();
-  // Sub-users cannot delete (RLS has no delete policy for them) — hide it.
-  const canDelete = membershipRole === "owner";
+  const {
+    openOpportunity,
+    openEditDialog,
+    moveStage,
+    markWon,
+    markLost,
+    deleteOpportunity,
+    requestDeletion,
+  } = usePipeline();
+  const { membershipRole, userId } = useAuth();
+  const isOwner = membershipRole === "owner";
+
+  // Phase 5: owners soft-delete directly; sub-users can only request
+  // deletion of deals they created AND currently own (enforced by the RPC).
+  const canRequestDeletion =
+    !isOwner &&
+    Boolean(userId) &&
+    opportunity.createdBy === userId &&
+    opportunity.ownerId === userId;
+
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [deleteReason, setDeleteReason] = React.useState("");
+  const [confirmRequest, setConfirmRequest] = React.useState(false);
+  const [requestReason, setRequestReason] = React.useState("");
 
   return (
     <>
@@ -103,23 +123,70 @@ export function OpportunityActions({ opportunity, align = "end" }: OpportunityAc
             Mark as lost
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {canDelete ? (
-            <DropdownMenuItem className="text-rose-600" onSelect={() => setConfirmDelete(true)}>
+          {isOwner ? (
+            <DropdownMenuItem className="on-danger" onSelect={() => setConfirmDelete(true)}>
               <Trash2 />
               Delete
+            </DropdownMenuItem>
+          ) : canRequestDeletion && !opportunity.deletedAt ? (
+            <DropdownMenuItem onSelect={() => setConfirmRequest(true)}>
+              <Trash2 />
+              Request deletion
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* Owner: soft delete with a required reason. Restorable for 30 days. */}
       <ConfirmDialog
         open={confirmDelete}
-        onOpenChange={setConfirmDelete}
+        onOpenChange={(open) => {
+          setConfirmDelete(open);
+          if (!open) setDeleteReason("");
+        }}
         title={`Delete ${opportunity.company}?`}
-        description={`This removes ${opportunity.id} from the pipeline. This action cannot be undone in the demo session.`}
+        description="Soft-deletes the deal instantly — no approval needed. It stays restorable for 30 days, then is purged permanently."
         confirmLabel="Delete opportunity"
-        onConfirm={() => deleteOpportunity(opportunity.id)}
-      />
+        onConfirm={async () => {
+          await deleteOpportunity(opportunity.id, deleteReason);
+          setDeleteReason("");
+        }}
+      >
+        <Label htmlFor={`delete-reason-${opportunity.id}`}>Reason (required)</Label>
+        <Textarea
+          id={`delete-reason-${opportunity.id}`}
+          rows={3}
+          value={deleteReason}
+          onChange={(event) => setDeleteReason(event.target.value)}
+          placeholder="e.g. Duplicate of an existing deal"
+        />
+      </ConfirmDialog>
+
+      {/* Sub-user: deletion goes to the owner's approval queue. */}
+      <ConfirmDialog
+        open={confirmRequest}
+        onOpenChange={(open) => {
+          setConfirmRequest(open);
+          if (!open) setRequestReason("");
+        }}
+        title={`Request deletion of ${opportunity.company}?`}
+        description="The owner reviews your request. The deal shows “Deletion pending” until they approve or reject it."
+        confirmLabel="Submit request"
+        tone="default"
+        onConfirm={async () => {
+          await requestDeletion(opportunity.id, requestReason);
+          setRequestReason("");
+        }}
+      >
+        <Label htmlFor={`request-reason-${opportunity.id}`}>Reason (required)</Label>
+        <Textarea
+          id={`request-reason-${opportunity.id}`}
+          rows={3}
+          value={requestReason}
+          onChange={(event) => setRequestReason(event.target.value)}
+          placeholder="e.g. Created by mistake — same company listed twice"
+        />
+      </ConfirmDialog>
     </>
   );
 }

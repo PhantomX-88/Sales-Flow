@@ -66,7 +66,7 @@ export function PersonalTargetCard() {
       <Progress
         value={percent}
         className="mt-3 h-1.5"
-        indicatorClassName={percent >= 100 ? "bg-emerald-500" : "bg-primary"}
+        indicatorClassName={percent >= 100 ? "progress-tint-success" : "progress-tint-primary"}
       />
       <p className="mt-2 text-2xs text-muted-foreground">
         {isLoading

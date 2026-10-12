@@ -21,6 +21,8 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   tone?: "destructive" | "default";
   onConfirm: () => void;
+  /** Optional content between the description and the footer (e.g. a picker). */
+  children?: React.ReactNode;
 }
 
 export function ConfirmDialog({
@@ -32,6 +34,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   tone = "destructive",
   onConfirm,
+  children,
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,8 +44,8 @@ export function ConfirmDialog({
             <span
               className={
                 tone === "destructive"
-                  ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600"
-                  : "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+                  ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full icon-soft-danger"
+                  : "flex h-9 w-9 shrink-0 items-center justify-center rounded-full icon-soft-primary"
               }
               aria-hidden="true"
             >
@@ -54,6 +57,7 @@ export function ConfirmDialog({
             </div>
           </div>
         </DialogHeader>
+        {children ? <div className="space-y-2">{children}</div> : null}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {cancelLabel}

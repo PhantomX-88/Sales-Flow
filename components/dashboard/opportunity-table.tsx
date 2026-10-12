@@ -103,7 +103,15 @@ function OpportunityRow({ opportunity, compact }: { opportunity: Opportunity; co
       </TableCell>
 
       <TableCell className={cellPadding}>
-        <StageBadge stage={opportunity.stage} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StageBadge stage={opportunity.stage} />
+          {/* Phase 5: a pending deletion request holds this deal. */}
+          {opportunity.deletionPending ? (
+            <span className="soft-outline-warning">
+              Deletion pending
+            </span>
+          ) : null}
+        </div>
       </TableCell>
 
       <TableCell className={cn("text-right text-[13px] font-semibold tabular", cellPadding)}>
@@ -114,7 +122,7 @@ function OpportunityRow({ opportunity, compact }: { opportunity: Opportunity; co
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-primary"
+              className="h-full rounded-full fill-primary"
               style={{ width: `${opportunity.probability}%` }}
             />
           </div>
@@ -139,7 +147,7 @@ function OpportunityRow({ opportunity, compact }: { opportunity: Opportunity; co
           <span
             className={cn(
               "text-2xs",
-              tone === "danger" ? "font-medium text-rose-600" : "text-muted-foreground",
+              tone === "danger" ? "font-medium on-danger" : "text-muted-foreground",
             )}
           >
             Closes {formatDateShort(opportunity.expectedCloseDate)}

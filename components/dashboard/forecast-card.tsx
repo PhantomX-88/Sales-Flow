@@ -32,7 +32,7 @@ function ForecastRow({ label, value, currency, hint, tone = "default" }: Forecas
       <span
         className={cn(
           "text-[13px] font-semibold tabular",
-          tone === "success" && "text-emerald-600",
+          tone === "success" && "on-success",
           tone === "muted" && "text-muted-foreground",
         )}
       >
@@ -86,7 +86,7 @@ export function ForecastCard({ className }: { className?: string }) {
               <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                 Closed revenue
               </p>
-              <p className="text-[24px] font-bold leading-none tracking-tight tabular text-emerald-600">
+              <p className="text-[24px] font-bold leading-none tracking-tight tabular on-success">
                 {formatCurrency(forecast.closedRevenue, currency)}
               </p>
             </div>
@@ -103,7 +103,7 @@ export function ForecastCard({ className }: { className?: string }) {
           <Progress
             value={attainment}
             className="h-2.5"
-            indicatorClassName={isOnTrack ? "bg-emerald-500" : "bg-primary"}
+            indicatorClassName={isOnTrack ? "progress-tint-success" : "progress-tint-primary"}
             aria-label="Target attainment"
           />
           <div className="flex items-center justify-between text-2xs text-muted-foreground">
@@ -149,7 +149,7 @@ export function ForecastCard({ className }: { className?: string }) {
           <span
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-full",
-              isOnTrack ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600",
+              isOnTrack ? "icon-soft-success" : "icon-soft-warning",
             )}
             aria-hidden="true"
           >
