@@ -563,8 +563,8 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   /* ------------------------------------------------------------------ */
 
   const pushActivity = React.useCallback(
-    async (activity: Omit<Activity, "id" | "time">) => {
-      if (!organizationId) return;
+    async (activity: Omit<Activity, "id" | "time">): Promise<boolean> => {
+      if (!organizationId) return false;
       const { data, error } = await getSupabaseClient()
         .from("activities")
         .insert({
@@ -579,12 +579,13 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         .single();
       if (error || !data) {
         toast({ title: "Activity could not be saved.", description: error?.message, variant: "destructive" });
-        return;
+        return false;
       }
       setActivities((current) => [
         { ...activity, id: String(data.id), time: data.created_at ? new Date(data.created_at).toLocaleString() : "Just now" },
         ...current,
       ]);
+      return true;
     },
     [organizationId],
   );
@@ -1023,16 +1024,17 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       if (!organizationId) return;
       const existing = opportunities.find((opportunity) => opportunity.id === opportunityId);
 
-      // Save the opportunity touch marker even if the activity itself is
-      // blocked by permissions — but do it after the main insert so a
-      // failure there short-circuits first.
-      await pushActivity({
+      // The activity insert must succeed first — pushActivity toasts its own
+      // failure, and we never show "Activity logged" for a row that was
+      // rejected by the database.
+      const saved = await pushActivity({
         type,
         text,
         opportunityId,
         nextStep: meta?.nextStep,
         dueDate: meta?.dueDate,
       });
+      if (!saved) return;
       const { error } = await getSupabaseClient()
         .from("opportunities")
         .update({ last_activity: "Just now" })

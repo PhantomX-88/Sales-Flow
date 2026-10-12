@@ -345,7 +345,7 @@ Visibility matrix, all enforced by Postgres policies (never UI-only):
 * The dashboard scopes sub-user queries with an explicit `owner_id = userId` filter (RLS enforces the same rule server-side), renders a **Personal target** progress card on Overview, logs optional **next step + due date** with each activity, folds due/overdue reminders into the Tasks view, and hides all Delete actions for non-owners.
 * Deactivating a sub-user removes access to deals, activities and targets immediately (verified by test 18).
 
-**Run order in the SQL Editor:** `patch-01-targets-relax.sql` → `patch-02-accept-invitation.sql` → `schema.sql` (full, or at minimum the `PHASE 3` section) → `tests/phase2-tests.sql` → `tests/phase3-tests.sql` (expect `ALL PHASE 3 TESTS PASSED`). The patches use `$patch$`/`$func$` tags so the SQL Editor's dollar-quote parser never aborts the run.
+**Run order in the SQL Editor:** `patch-01-targets-relax.sql` → `patch-02-accept-invitation.sql` → `fix-legacy-notnull.sql` → `schema.sql` (full, or at minimum the `PHASE 3` section) → `tests/phase2-tests.sql` → `tests/phase3-tests.sql` (expect `ALL PHASE 3 TESTS PASSED`). The patches use `$patch$`/`$func$` tags so the SQL Editor's dollar-quote parser never aborts the run. `fix-legacy-notnull.sql` heals legacy shapes like `activities.activity_type NOT NULL` (23502 errors) and sweeps every business table for other NOT-NULL-no-default columns the app never supplies; its final query must return **zero rows**.
 
 ---
 

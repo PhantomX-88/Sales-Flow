@@ -2243,5 +2243,84 @@ begin
 end;
 $$;
 
+-- ============================================================
+-- LEGACY SHAPE RECONCILIATION — same pattern as sales_targets:
+-- older app versions created columns like activities.activity_type
+-- (NOT NULL, no default) that modern inserts never fill. Sync them,
+-- then sweep every business table for NOT NULL + no default +
+-- not-supplied-by-app columns and relax only those. Idempotent.
+-- ============================================================
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'activities' and column_name = 'activity_type'
+  ) then
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public' and table_name = 'activities' and column_name = 'type'
+    ) then
+      execute 'update public.activities set type = activity_type where type = ''note'' and activity_type is not null and activity_type <> ''note''';
+      begin
+        execute 'update public.activities set activity_type = type where activity_type is null';
+      exception when others then
+        raise notice 'note: could not mirror type -> activity_type (%)', sqlerrm;
+      end;
+      begin
+        execute 'alter table public.activities alter column activity_type drop not null';
+      exception when others then null;
+      end;
+      begin
+        execute 'alter table public.activities alter column activity_type set default ''note''';
+      exception when others then null;
+      end;
+    else
+      execute 'alter table public.activities rename column activity_type to type';
+    end if;
+  end if;
+end
+$$;
+
+do $$
+declare
+  v_table text;
+  v_keep text[];
+  v_column text;
+begin
+  for v_table, v_keep in
+    select * from (values
+      ('opportunities',      array['id','organization_id','company','stage','owner']),
+      ('activities',         array['id','organization_id','type','text']),
+      ('organizations',      array['id','name','slug']),
+      ('organization_members', array['organization_id','user_id','role','status']),
+      ('profiles',           array['id','full_name']),
+      ('audit_log',          array['id','organization_id','action','entity']),
+      ('sales_targets',      array['id','organization_id','user_id','target_amount','period','source'])
+    ) as t(tbl, keep)
+  loop
+    if to_regclass('public.' || v_table) is null then
+      continue;
+    end if;
+    for v_column in
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = v_table
+        and is_nullable = 'NO'
+        and column_default is null
+        and not (column_name = any (v_keep))
+    loop
+      begin
+        execute format('alter table public.%I alter column %I drop not null', v_table, v_column);
+        raise notice 'RELAXED public.%.% (legacy NOT NULL, not supplied by the app)', v_table, v_column;
+      exception when others then
+        raise notice 'skipped public.%.%: %', v_table, v_column, sqlerrm;
+      end;
+    end loop;
+  end loop;
+end
+$$;
+
 notify pgrst, 'reload schema';
 
