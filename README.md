@@ -387,6 +387,23 @@ UI: owner delete dialogs require a reason; sub-users get a **Request deletion** 
 
 **Scheduled job:** run `select purge_expired_soft_deletes();` nightly — same pg_cron / Vercel Cron entry as `expire_stale_invitations()`.
 
+## Supabase linter — accepted warnings & fixes
+
+Run `supabase/fix-linter-grants.sql` once (idempotent) to clear the fixable findings. What remains is intentional:
+
+| Lint | Status | Rationale |
+| --- | --- | --- |
+| `anon_security_definer_function_executable` (0028) | **fixed** | Trigger functions (`enforce_active_owner_exists`, `enforce_opportunity_ownership`, `handle_new_user`) had the PUBLIC default EXECUTE grant. `fix-linter-grants.sql` revokes it — triggers still fire (EXECUTE is checked at `CREATE TRIGGER` time, not at fire time). Verification query A in the patch must return **zero rows**. |
+| `authenticated_..._executable` on cron jobs | **fixed** | `expire_stale_invitations()` / `purge_expired_soft_deletes()` are service-role only (cron + server routes). |
+| `authenticated_..._executable` on guarded RPCs (0029) | **accepted** | `accept_invitation`, `save_organization_setup`, `set_member_status`, `reassign_opportunity`, `bulk_reassign`, `request_deletion`, `soft_delete_opportunity`, `approve/reject_deletion_request`, `restore_opportunity`, `is_organization_member/owner`, `owns_opportunity`, `is_organization_tag_available` are SECURITY DEFINER **by design**: each validates `auth.uid()` and (for owner actions) active-owner status inside the function body. Moving them to service-role routes would add a round-trip without reducing capability — the linter simply cannot see in-function checks. |
+| Legacy `create_organization` / `is_org_member` | **dropped** | Superseded by `save_organization_setup` / `is_organization_member`; zero references in the codebase. |
+| `rls_enabled_no_policy` on `workspaces` / `workspace_members` | **accepted (INFO)** | Legacy migration-only tables with RLS on and zero policies = deny-all to clients (stricter than needed); `revoke all ... from anon, authenticated` also applies. They exist solely to migrate old data into organizations. |
+| `auth_leaked_password_protection` | **dashboard toggle** | Supabase Dashboard → Authentication → Settings → enable *Leaked password protection* (checks HaveIBeenPwned). Requires the paid plan on some tiers; otherwise choose a strong password policy. |
+| `auth_rls_initplan` (0003) | **fixed** | Every RLS policy now wraps `auth.uid()` in `(select auth.uid())` so it is evaluated once per query instead of per row (`fix-perf-lints.sql` + schema.sql). |
+| `multiple_permissive_policies` (0006) | **fixed (security)** | The legacy combined `opportunities_sales_rep_access` / `activities_sales_rep_access` `FOR ALL` policies overlapped the per-command set — and because permissive policies OR together, they **also granted sub-users DELETE on their own deals**, bypassing the Phase 5 approval flow. Dropped everywhere; the per-command policies carry the sub-user scope and the `deleted_at is null` semantics. |
+| `duplicate_index` (0009) / `unused_index` (0005) | **fixed** | Legacy `idx_*` duplicates and the unused stage/close-date indexes are dropped; canonical schema names kept. Young canonical indexes flagged "unused" (e.g. `opportunity_history_*`) are kept deliberately — the usage-stats window is too short to judge them. |
+| `unindexed_foreign_keys` (0001) | **partial** | Added `audit_log_organization_id_idx` (owner audit feed). The remaining INFO findings are accepted: legacy tables (`workspaces`, `contacts`, `accounts`) and actor/owner-id FKs the app never filters, joins or cascades on. |
+
 ---
 
 # Development

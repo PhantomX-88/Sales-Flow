@@ -707,11 +707,11 @@ end;
 $$;
 
 create policy profiles_select_own on public.profiles
-  for select using (id = auth.uid());
+  for select using (id = (select auth.uid()));
 create policy organizations_select_member on public.organizations
   for select using (public.is_organization_member(id));
 create policy organization_members_select_self_or_owner on public.organization_members
-  for select using (user_id = auth.uid() or public.is_organization_owner(organization_id));
+  for select using (user_id = (select auth.uid()) or public.is_organization_owner(organization_id));
 create policy audit_log_select_owner on public.audit_log
   for select using (public.is_organization_owner(organization_id));
 create policy opportunities_owner_access on public.opportunities
@@ -841,62 +841,14 @@ create trigger opportunities_ownership_guard
   before insert or update on public.opportunities
   for each row execute procedure public.enforce_opportunity_ownership();
 
--- Sales reps may work only on opportunities assigned to themselves and
--- activities linked to those opportunities. Owners retain the org-wide
--- policies above.
+-- Sales-rep scoping is handled EXCLUSIVELY by the per-command policies
+-- (opportunities_select/insert/update/delete, activities_*) defined in
+-- the PHASE 3 section below. The old combined FOR ALL policies overlapped
+-- them (Supabase linter 0006) and — worse — granted sub-users DELETE on
+-- their own rows because permissive policies OR together. Drop them
+-- everywhere so no run can recreate them.
 drop policy if exists opportunities_sales_rep_access on public.opportunities;
-create policy opportunities_sales_rep_access on public.opportunities
-  for all using (
-    owner_id = auth.uid()
-    and exists (
-      select 1 from public.organization_members
-      where organization_id = opportunities.organization_id
-        and user_id = auth.uid()
-        and role = 'sales_rep'
-        and status = 'active'
-    )
-  )
-  with check (
-    owner_id = auth.uid()
-    and exists (
-      select 1 from public.organization_members
-      where organization_id = opportunities.organization_id
-        and user_id = auth.uid()
-        and role = 'sales_rep'
-        and status = 'active'
-    )
-  );
-
 drop policy if exists activities_sales_rep_access on public.activities;
-create policy activities_sales_rep_access on public.activities
-  for all using (
-    exists (
-      select 1
-      from public.organization_members member
-      join public.opportunities opportunity
-        on opportunity.id = activities.opportunity_id
-       and opportunity.organization_id = activities.organization_id
-      where member.organization_id = activities.organization_id
-        and member.user_id = auth.uid()
-        and member.role = 'sales_rep'
-        and member.status = 'active'
-        and opportunity.owner_id = auth.uid()
-    )
-  )
-  with check (
-    exists (
-      select 1
-      from public.organization_members member
-      join public.opportunities opportunity
-        on opportunity.id = activities.opportunity_id
-       and opportunity.organization_id = activities.organization_id
-      where member.organization_id = activities.organization_id
-        and member.user_id = auth.uid()
-        and member.role = 'sales_rep'
-        and member.status = 'active'
-        and opportunity.owner_id = auth.uid()
-    )
-  );
 
 -- C1: sales_targets (spec assumed it existed; created here) ------------------
 create table if not exists public.sales_targets (
@@ -1096,12 +1048,12 @@ $$;
 
 create policy profiles_select_own_or_teammate on public.profiles
   for select using (
-    id = auth.uid()
+    id = (select auth.uid())
     or exists (
       select 1
       from public.organization_members me
       join public.organization_members them on them.organization_id = me.organization_id
-      where me.user_id = auth.uid()
+      where me.user_id = (select auth.uid())
         and me.status = 'active'
         and them.user_id = profiles.id
     )
@@ -1112,7 +1064,7 @@ create policy invitations_owner_select on public.invitations
 
 create policy sales_targets_select_owner_or_self on public.sales_targets
   for select using (
-    (user_id = auth.uid() and public.is_organization_member(organization_id))
+    (user_id = (select auth.uid()) and public.is_organization_member(organization_id))
     or public.is_organization_owner(organization_id)
   );
 
@@ -1278,8 +1230,9 @@ as $$
   select count(*)::int from expired;
 $$;
 
-revoke all on function public.expire_stale_invitations() from public, anon;
-grant execute on function public.expire_stale_invitations() to authenticated;
+-- Service-role only (cron + the invite routes): not callable by
+-- clients — keeps linter 0029 off a maintenance job.
+revoke all on function public.expire_stale_invitations() from public, anon, authenticated;
 grant execute on function public.expire_stale_invitations() to service_role;
 
 -- Deactivate / reactivate members (owner only, enforced server-side).
@@ -1428,12 +1381,14 @@ as $$
     from public.opportunities o
     where o.id = target_opportunity_id
       and o.organization_id = target_organization_id
-      and o.owner_id = auth.uid()
+      and o.owner_id = (select auth.uid())
+      -- Soft-deleted deals are invisible to sub-users entirely (Phase 5).
+      and o.deleted_at is null
       and exists (
         select 1
         from public.organization_members m
         where m.organization_id = o.organization_id
-          and m.user_id = auth.uid()
+          and m.user_id = (select auth.uid())
           and m.status = 'active'
       )
   );
@@ -1443,9 +1398,14 @@ revoke all on function public.owns_opportunity(uuid, uuid) from public, anon;
 grant execute on function public.owns_opportunity(uuid, uuid) to authenticated;
 
 -- Opportunities: owners act org-wide; sub-users only on their own rows.
--- DELETE stays owner-only — sub-user deletion arrives in Phase 5 as an
--- approval flow, never as a direct policy.
+-- DELETE stays owner-only — sub-user deletion is the Phase 5 approval
+-- flow, never a direct policy. Sub-user branches exclude soft-deleted
+-- rows (deleted_at is null). auth.uid() is wrapped in (select ...) so
+-- it is evaluated once per query, not per row (Supabase linter 0003).
+-- The legacy combined FOR ALL policies are dropped again here in case
+-- an older database still carries them (linter 0006).
 drop policy if exists opportunities_owner_access on public.opportunities;
+drop policy if exists opportunities_sales_rep_access on public.opportunities;
 drop policy if exists opportunities_select on public.opportunities;
 drop policy if exists opportunities_insert on public.opportunities;
 drop policy if exists opportunities_update on public.opportunities;
@@ -1454,7 +1414,11 @@ drop policy if exists opportunities_delete on public.opportunities;
 create policy opportunities_select on public.opportunities
   for select using (
     public.is_organization_owner(organization_id)
-    or (owner_id = auth.uid() and public.is_organization_member(organization_id))
+    or (
+      owner_id = (select auth.uid())
+      and public.is_organization_member(organization_id)
+      and deleted_at is null
+    )
   );
 
 create policy opportunities_insert on public.opportunities
@@ -1462,7 +1426,8 @@ create policy opportunities_insert on public.opportunities
     public.is_organization_owner(organization_id)
     or (
       public.is_organization_member(organization_id)
-      and (owner_id = auth.uid() or owner_id is null)
+      and (owner_id = (select auth.uid()) or owner_id is null)
+      and deleted_at is null
     )
   );
 
@@ -1470,22 +1435,29 @@ create policy opportunities_update on public.opportunities
   for update
   using (
     public.is_organization_owner(organization_id)
-    or (owner_id = auth.uid() and public.is_organization_member(organization_id))
+    or (
+      owner_id = (select auth.uid())
+      and public.is_organization_member(organization_id)
+      and deleted_at is null
+    )
   )
   with check (
     public.is_organization_owner(organization_id)
     or (
       public.is_organization_member(organization_id)
-      and (owner_id = auth.uid() or owner_id is null)
+      and (owner_id = (select auth.uid()) or owner_id is null)
+      and deleted_at is null
     )
   );
 
 create policy opportunities_delete on public.opportunities
   for delete using (public.is_organization_owner(organization_id));
 
--- Activities: owners org-wide; sub-users only on opportunities they own.
--- Activities without an opportunity are owner-only (ambiguous ownership).
+-- Activities: owners org-wide; sub-users only on non-deleted opportunities
+-- they own (owns_opportunity enforces deleted_at is null). Activities
+-- without an opportunity are owner-only (ambiguous ownership).
 drop policy if exists activities_owner_access on public.activities;
+drop policy if exists activities_sales_rep_access on public.activities;
 drop policy if exists activities_select on public.activities;
 drop policy if exists activities_insert on public.activities;
 drop policy if exists activities_update on public.activities;
@@ -1554,7 +1526,7 @@ create policy opportunity_history_select on public.opportunity_history
   for select using (
     public.is_organization_owner(organization_id)
     or (
-      (old_owner_id = auth.uid() or new_owner_id = auth.uid())
+      ((select auth.uid()) in (old_owner_id, new_owner_id))
       and public.is_organization_member(organization_id)
     )
   );
@@ -1834,7 +1806,7 @@ create policy deletion_requests_select on public.deletion_requests
   for select using (
     public.is_organization_owner(organization_id)
     or (
-      requested_by = auth.uid()
+      requested_by = (select auth.uid())
       and public.is_organization_member(organization_id)
     )
   );
@@ -2205,43 +2177,66 @@ begin
 end;
 $$;
 
-revoke all on function public.purge_expired_soft_deletes() from public, anon;
-grant execute on function public.purge_expired_soft_deletes() to authenticated;
+-- Service-role only (nightly purge job): not callable by clients.
+revoke all on function public.purge_expired_soft_deletes() from public, anon, authenticated;
 grant execute on function public.purge_expired_soft_deletes() to service_role;
 
 -- ==============================================
 -- RLS on opportunities: sub-users must not see (or un-delete) soft-deleted
--- rows — their policy gains an explicit `deleted_at is null` check. Owners
--- intentionally keep seeing deleted rows: the approvals queue, restore and
--- trash views run through owner-verified RPCs, so exposure is safe.
+-- rows. This is now handled by the per-command opportunities_select/
+-- insert/update policies in the PHASE 3 section (their sub-user branches
+-- carry `deleted_at is null`); owners intentionally keep seeing deleted
+-- rows for the approvals queue, restore and trash views. The legacy
+-- combined FOR ALL policy is dropped here so no run can recreate it —
+-- it overlapped the per-command set (linter 0006) and granted sub-users
+-- DELETE on their own rows.
 -- ==============================================
+drop policy if exists opportunities_sales_rep_access on public.opportunities;
+drop policy if exists activities_sales_rep_access on public.activities;
+
+-- ============================================================
+-- INDEX HYGIENE — Supabase linter 0009 / 0005 / 0001
+-- Drop legacy duplicate + unused indexes (the canonical names
+-- created earlier in this schema are kept), then add the one
+-- hot-path covering index the linter asked for (audit feed by
+-- organization). Remaining 0001 findings (contacts/accounts /
+-- workspace legacy FKs, actor/owner-id FKs) are accepted INFO:
+-- the app never filters or cascades on them.
+-- ============================================================
+drop index if exists public.idx_activities_org;
+drop index if exists public.idx_opportunities_org;
+drop index if exists public.idx_opportunities_owner;
+drop index if exists public.idx_members_org;
+drop index if exists public.idx_org_members_org;
+drop index if exists public.idx_members_user;
+drop index if exists public.idx_org_members_user;
+drop index if exists public.idx_sales_targets_org;
+drop index if exists public.idx_targets_org;
+drop index if exists public.idx_opportunities_stage;
+drop index if exists public.idx_opportunities_close_date;
+
 do $$
 begin
-  execute 'drop policy if exists opportunities_sales_rep_access on public.opportunities';
-  execute 'create policy opportunities_sales_rep_access on public.opportunities
-    for all using (
-      owner_id = auth.uid()
-      and deleted_at is null
-      and exists (
-        select 1 from public.organization_members
-        where organization_id = opportunities.organization_id
-          and user_id = auth.uid()
-          and role = ''sales_rep''
-          and status = ''active''
-      )
-    )
-    with check (
-      owner_id = auth.uid()
-      and exists (
-        select 1 from public.organization_members
-        where organization_id = opportunities.organization_id
-          and user_id = auth.uid()
-          and role = ''sales_rep''
-          and status = ''active''
-      )
-    )';
-end;
-$$;
+  -- May back a UNIQUE constraint on older databases; guarded either way.
+  begin
+    execute 'drop index if exists public.organization_members_organization_id_user_id_key';
+  exception when others then
+    raise notice 'note: could not drop organization_members_organization_id_user_id_key (%)', sqlerrm;
+  end;
+end $$;
+
+create index if not exists audit_log_organization_id_idx
+  on public.audit_log (organization_id, created_at desc);
+
+-- ============================================================
+-- LINTER HYGIENE — Supabase linter 0028/0029
+-- Trigger functions must never be callable via /rest/v1/rpc.
+-- EXECUTE is checked at CREATE TRIGGER time, so the ownership
+-- and last-owner triggers keep firing after these revokes.
+-- ============================================================
+revoke all on function public.enforce_active_owner_exists() from public, anon, authenticated;
+revoke all on function public.enforce_opportunity_ownership() from public, anon, authenticated;
+revoke all on function public.handle_new_user() from public, anon, authenticated;
 
 -- ============================================================
 -- LEGACY SHAPE RECONCILIATION — same pattern as sales_targets:
