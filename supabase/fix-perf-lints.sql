@@ -209,8 +209,10 @@ create index if not exists audit_log_organization_id_idx
 select schemaname, tablename, policyname
 from pg_policies
 where schemaname = 'public'
-  and (qual like '%auth.uid()%' and qual not like '%(select auth.uid())%')
-     or (with_check like '%auth.uid()%' and with_check not like '%(select auth.uid())%')
+  and (
+    (qual like '%auth.uid()%' and qual not like '%(select auth.uid())%')
+    or (with_check like '%auth.uid()%' and with_check not like '%(select auth.uid())%')
+  )
 order by tablename, policyname;
 
 -- 7) Verification B — must return ZERO rows: no table should have more
