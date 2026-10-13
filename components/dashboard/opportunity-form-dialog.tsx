@@ -267,7 +267,7 @@ export function OpportunityFormDialog({
               />
             </Field>
 
-            <Field label="Contact name" htmlFor="opp-contact" error={errors.contact} hint="Choose a saved contact for this company or type a new name.">
+            <Field label="Contact name *" htmlFor="opp-contact" error={errors.contact} hint="Choose a saved contact for this company or type a new name.">
               <Input
                 id="opp-contact"
                 value={draft.contact}

@@ -272,7 +272,11 @@ function draftToOpportunity(
   };
 }
 
-function toOpportunityRow(opportunity: Opportunity, organizationId: string) {
+function toOpportunityRow(
+  opportunity: Opportunity,
+  organizationId: string,
+  includeCrmLinks = true,
+) {
   return {
     organization_id: organizationId,
     company: opportunity.company,
@@ -291,8 +295,12 @@ function toOpportunityRow(opportunity: Opportunity, organizationId: string) {
     notes: opportunity.notes ?? null,
     closed_date: opportunity.closedDate ?? null,
     probability_overridden: opportunity.probabilityOverridden ?? false,
-    account_id: opportunity.accountId ?? null,
-    contact_id: opportunity.contactId ?? null,
+    ...(includeCrmLinks
+      ? {
+          account_id: opportunity.accountId ?? null,
+          contact_id: opportunity.contactId ?? null,
+        }
+      : {}),
   };
 }
 
@@ -902,31 +910,85 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       }
-      const links = await resolveAccountContact(draft, activeOrganizationId);
-      if (!links) return false;
       const id = crypto.randomUUID();
-      const opportunity = draftToOpportunity({ ...draft, ...links }, TODAY, id);
+      const opportunity = draftToOpportunity(draft, TODAY, id);
       const { data, error } = await getSupabaseClient()
         .from("opportunities")
-        .insert(toOpportunityRow(opportunity, activeOrganizationId))
+        .insert(toOpportunityRow(opportunity, activeOrganizationId, false))
         .select()
         .single();
       if (error || !data) {
         toast({ title: "Opportunity could not be created.", description: error?.message, variant: "destructive" });
         return false;
       }
-      const savedOpportunity = fromOpportunityRow(data as Record<string, unknown>);
+      let savedOpportunity = fromOpportunityRow(data as Record<string, unknown>);
+      let links: { accountId?: string; contactId?: string } | null = null;
+      try {
+        links = await resolveAccountContact(draft, activeOrganizationId);
+      } catch (error) {
+        toast({
+          title: "Opportunity created, but CRM linking failed.",
+          description: error instanceof Error ? error.message : "The account/contact records could not be checked.",
+          variant: "destructive",
+        });
+      }
+      let crmLinksSaved = false;
+      if (links) {
+        try {
+          const { data: linked, error: linkError } = await getSupabaseClient()
+            .from("opportunities")
+            .update({
+              account_id: links.accountId ?? null,
+              contact_id: links.contactId ?? null,
+            })
+            .eq("id", id)
+            .eq("organization_id", activeOrganizationId)
+            .select()
+            .maybeSingle();
+          if (linkError || !linked) {
+            toast({
+              title: "Opportunity created, but CRM links could not be saved.",
+              description: linkError?.message ?? "The account/contact links were not returned. You can edit the deal to retry.",
+              variant: "destructive",
+            });
+          } else {
+            savedOpportunity = fromOpportunityRow(linked as Record<string, unknown>);
+            crmLinksSaved = true;
+          }
+        } catch (error) {
+          toast({
+            title: "Opportunity created, but CRM links could not be saved.",
+            description: error instanceof Error ? error.message : "You can edit the deal to retry.",
+            variant: "destructive",
+          });
+        }
+      }
       setOpportunities((current) => [savedOpportunity, ...current]);
-      await pushActivity({
-        type: "lead",
-        text: `${savedOpportunity.company} added to ${savedOpportunity.stage}`,
-        opportunityId: savedOpportunity.id,
-      });
-      toast({
-        title: "Opportunity created successfully.",
-        description: `${savedOpportunity.company} · ${savedOpportunity.stage}`,
-        variant: "success",
-      });
+      try {
+        await pushActivity({
+          type: "lead",
+          text: `${savedOpportunity.company} added to ${savedOpportunity.stage}`,
+          opportunityId: savedOpportunity.id,
+        });
+      } catch (error) {
+        toast({
+          title: "Opportunity created, but its activity could not be recorded.",
+          description: error instanceof Error ? error.message : "The activity can be added later.",
+          variant: "destructive",
+        });
+      }
+      if (crmLinksSaved) {
+        toast({
+          title: "Opportunity created successfully.",
+          description: `${savedOpportunity.company} · ${savedOpportunity.stage}`,
+          variant: "success",
+        });
+      } else {
+        toast({
+          title: "Opportunity created without CRM links.",
+          description: `${savedOpportunity.company} · ${savedOpportunity.stage}. Account/contact linking needs attention.`,
+        });
+      }
       setCreateOpen(false);
       return true;
     },
