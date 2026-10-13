@@ -54,7 +54,7 @@ const FAQS = [
   {
     question: "What does it track?",
     answer:
-      "Deals from first contact to Closed Won or Lost, stage changes, activities (calls, meetings, emails, notes, follow-ups), next steps with due dates, tasks, and revenue targets.",
+      "Deals from first contact to Closed Won or Lost, activities (calls, meetings, emails, notes, follow-ups), next steps with due dates, tasks, company and contact records, and revenue targets.",
   },
   {
     question: "Which currencies are supported?",
@@ -66,8 +66,9 @@ const FAQS = [
       "Yes. The owner invites teammates by email. Each team member works their own deals, activities, and personal target; the owner sees the whole organization.",
   },
   {
-    question: "Can I take my data out?",
-    answer: "Yes. You can export your filtered pipeline to a CSV file at any time, from the pipeline view.",
+    question: "Can I bring my data in and take it out?",
+    answer:
+      "Yes. Import existing deals from a CSV file with a mapping and validation preview before anything is written, and export your filtered pipeline to CSV at any time.",
   },
 ] as const;
 

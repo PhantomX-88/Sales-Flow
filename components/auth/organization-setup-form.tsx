@@ -12,13 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const FEATURES = [
-  { id: "email-whatsapp", label: "Email and WhatsApp helpers" },
-  { id: "quotes-proforma", label: "Quotes and proforma invoices" },
-  { id: "payment-tracking", label: "Payment tracking" },
-  { id: "ai-follow-up", label: "AI follow-up drafts" },
-] as const;
-
 const INDUSTRIES = [
   "Technology",
   "Professional services",
@@ -76,6 +69,7 @@ export function OrganizationSetupForm({
   const [setup, setSetup] = React.useState<OrganizationSetupDetails>(() => initial ?? EMPTY_SETUP);
   const [step, setStep] = React.useState(1);
   const [pending, setPending] = React.useState(false);
+  const [currencyTouched, setCurrencyTouched] = React.useState(false);
   const [tagStatus, setTagStatus] = React.useState<"idle" | "checking" | "available" | "taken" | "invalid" | "error">("idle");
   const [error, setError] = React.useState<string | null>(null);
   const tag = setup.tag.trim().toLowerCase();
@@ -83,6 +77,8 @@ export function OrganizationSetupForm({
 
   React.useEffect(() => {
     setSetup(initial ?? EMPTY_SETUP);
+    // An existing organization already chose its currency — never auto-change it.
+    setCurrencyTouched(Boolean(initial?.currency));
   }, [initial]);
 
   React.useEffect(() => {
@@ -110,11 +106,32 @@ export function OrganizationSetupForm({
     setError(null);
   }
 
-  async function save(features = setup.enabledFeatures) {
+  /**
+   * NGN is the default currency ONLY for Nigeria; any other country keeps the
+   * neutral USD default. The user can always override, and their choice sticks.
+   */
+  function handleCountryChange(value: string) {
+    update("country", value);
+    if (!currencyTouched) {
+      update("currency", value.trim().toLowerCase() === "nigeria" ? "NGN" : "USD");
+    }
+  }
+
+  function handleCurrencyChange(value: OrganizationSetupDetails["currency"]) {
+    setCurrencyTouched(true);
+    update("currency", value);
+  }
+
+  /**
+   * Saves the organization. Existing `enabledFeatures` values are always passed
+   * through untouched — old records keep loading, nothing is erased.
+   */
+  async function save(details?: OrganizationSetupDetails) {
     setPending(true);
     setError(null);
+    const payload = details ?? setup;
     const result = await saveOrganizationSetup(
-      { ...setup, tag, enabledFeatures: features },
+      { ...payload, tag, enabledFeatures: payload.enabledFeatures ?? [] },
       initial?.id,
     );
     setPending(false);
@@ -127,11 +144,16 @@ export function OrganizationSetupForm({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (mode === "onboarding" && step < 3) {
+    if (mode === "onboarding" && step < 2) {
       setStep((current) => current + 1);
       return;
     }
     void save();
+  }
+
+  /** Step 2 is optional: skipping stores no target; Settings can add one later. */
+  function handleSkipTarget() {
+    void save({ ...setup, revenueTarget: 0 });
   }
 
   const settingsMode = mode === "settings";
@@ -152,11 +174,11 @@ export function OrganizationSetupForm({
       {mode === "onboarding" ? (
         <div>
           <div className="mb-3 flex items-center justify-between text-xs font-medium text-muted-foreground">
-            <span>{step === 3 ? "Optional features" : "Company setup"}</span>
-            <span>Step {step} of 3</span>
+            <span>{step === 2 ? "Revenue target (optional)" : "Company setup"}</span>
+            <span>Step {step} of 2</span>
           </div>
-          <div className="grid grid-cols-3 gap-1.5" aria-label={`Step ${step} of 3`}>
-            {[1, 2, 3].map((item) => (
+          <div className="grid grid-cols-2 gap-1.5" aria-label={`Step ${step} of 2`}>
+            {[1, 2].map((item) => (
               <span key={item} className={`h-1 rounded-full ${item <= step ? "bg-primary" : "bg-muted"}`} />
             ))}
           </div>
@@ -183,17 +205,29 @@ export function OrganizationSetupForm({
               {tagMessage}
             </p>
           </Field>
-          <Field id="org-industry" label="Industry">
-            <select id="org-industry" className={selectClass} value={setup.industry} onChange={(event) => update("industry", event.target.value)}>
-              {INDUSTRIES.map((industry) => <option key={industry}>{industry}</option>)}
-            </select>
-          </Field>
           <Field id="org-country" label="Country">
-            <Input id="org-country" value={setup.country} onChange={(event) => update("country", event.target.value)} maxLength={80} required />
+            <Input id="org-country" value={setup.country} onChange={(event) => handleCountryChange(event.target.value)} maxLength={80} required />
           </Field>
-          <Field id="org-user-count" label="Expected number of sub-users">
-            <Input id="org-user-count" type="number" min={0} step={1} value={setup.expectedSubUsers} onChange={(event) => update("expectedSubUsers", Number(event.target.value))} required />
+          <Field id="org-currency" label="Currency">
+            <select id="org-currency" className={selectClass} value={setup.currency} onChange={(event) => handleCurrencyChange(event.target.value as OrganizationSetupDetails["currency"])}>
+              <option value="NGN">NGN</option><option value="USD">USD</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Defaults to NGN when the country is Nigeria; editable any time.
+            </p>
           </Field>
+          {settingsMode ? (
+            <>
+              <Field id="org-industry" label="Industry">
+                <select id="org-industry" className={selectClass} value={setup.industry} onChange={(event) => update("industry", event.target.value)}>
+                  {INDUSTRIES.map((industry) => <option key={industry}>{industry}</option>)}
+                </select>
+              </Field>
+              <Field id="org-user-count" label="Expected number of sub-users">
+                <Input id="org-user-count" type="number" min={0} step={1} value={setup.expectedSubUsers} onChange={(event) => update("expectedSubUsers", Number(event.target.value))} required />
+              </Field>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -201,52 +235,29 @@ export function OrganizationSetupForm({
         <div className="grid gap-5 sm:grid-cols-2">
           <Field id="org-revenue-target" label="Revenue target">
             <Input id="org-revenue-target" type="number" min={0} step="0.01" value={setup.revenueTarget} onChange={(event) => update("revenueTarget", Number(event.target.value))} required />
-          </Field>
-          <Field id="org-currency" label="Currency">
-            <select id="org-currency" className={selectClass} value={setup.currency} onChange={(event) => update("currency", event.target.value as OrganizationSetupDetails["currency"])}>
-              <option value="NGN">NGN</option><option value="USD">USD</option>
-            </select>
+            <p className="text-xs text-muted-foreground">Leave 0 to set a target later in Settings.</p>
           </Field>
           <Field id="org-period" label="Target period">
             <select id="org-period" className={selectClass} value={setup.targetPeriod} onChange={(event) => update("targetPeriod", event.target.value as OrganizationSetupDetails["targetPeriod"])}>
               <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option>
             </select>
           </Field>
-          <Field id="org-transactions" label="Expected deals per month">
-            <Input id="org-transactions" type="number" min={0} step={1} value={setup.expectedTransactionsPerMonth} onChange={(event) => update("expectedTransactionsPerMonth", Number(event.target.value))} required />
-          </Field>
-          <Field id="org-average-deal" label="Average deal size">
-            <Input id="org-average-deal" type="number" min={0} step="0.01" value={setup.averageDealSize} onChange={(event) => update("averageDealSize", Number(event.target.value))} required />
-          </Field>
-          <Field id="org-team-type" label="Team type">
-            <select id="org-team-type" className={selectClass} value={setup.teamType} onChange={(event) => update("teamType", event.target.value as OrganizationSetupDetails["teamType"])}>
-              <option value="field">Field sales</option><option value="inside">Inside sales</option><option value="agency">Agency</option>
-            </select>
-          </Field>
+          {settingsMode ? (
+            <>
+              <Field id="org-transactions" label="Expected deals per month">
+                <Input id="org-transactions" type="number" min={0} step={1} value={setup.expectedTransactionsPerMonth} onChange={(event) => update("expectedTransactionsPerMonth", Number(event.target.value))} required />
+              </Field>
+              <Field id="org-average-deal" label="Average deal size">
+                <Input id="org-average-deal" type="number" min={0} step="0.01" value={setup.averageDealSize} onChange={(event) => update("averageDealSize", Number(event.target.value))} required />
+              </Field>
+              <Field id="org-team-type" label="Team type">
+                <select id="org-team-type" className={selectClass} value={setup.teamType} onChange={(event) => update("teamType", event.target.value as OrganizationSetupDetails["teamType"])}>
+                  <option value="field">Field sales</option><option value="inside">Inside sales</option><option value="agency">Agency</option>
+                </select>
+              </Field>
+            </>
+          ) : null}
         </div>
-      ) : null}
-
-      {(settingsMode || step === 3) ? (
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-semibold">Optional features</legend>
-          <p className="text-xs text-muted-foreground">Choose modules to enable. You can change these later in Settings.</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {FEATURES.map((feature) => {
-              const checked = setup.enabledFeatures.includes(feature.id);
-              return (
-                <label key={feature.id} className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => update("enabledFeatures", checked ? setup.enabledFeatures.filter((item) => item !== feature.id) : [...setup.enabledFeatures, feature.id])}
-                    className="size-4 accent-primary"
-                  />
-                  {feature.label}
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
       ) : null}
 
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
@@ -256,14 +267,14 @@ export function OrganizationSetupForm({
             <ArrowLeft /> Back
           </Button>
         ) : null}
-        {mode === "onboarding" && step === 3 ? (
-          <Button type="button" variant="outline" onClick={() => void save([])} disabled={pending || tagStatus !== "available"}>
-            Skip features
+        {mode === "onboarding" && step === 2 ? (
+          <Button type="button" variant="outline" onClick={handleSkipTarget} disabled={pending}>
+            Skip for now
           </Button>
         ) : null}
-        <Button type="submit" className={settingsMode || step === 3 ? "ml-auto" : "ml-auto"} disabled={pending || tagStatus !== "available"}>
-          {pending ? "Saving..." : settingsMode ? "Save organization" : step === 3 ? "Create organization" : "Continue"}
-          {step === 3 || settingsMode ? <Check /> : <ArrowRight />}
+        <Button type="submit" className="ml-auto" disabled={pending || tagStatus !== "available"}>
+          {pending ? "Saving..." : settingsMode ? "Save organization" : step === 2 ? "Create organization" : "Continue"}
+          {settingsMode || step === 2 ? <Check /> : <ArrowRight />}
         </Button>
       </div>
     </form>

@@ -3,6 +3,7 @@
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { ForecastCard } from "@/components/dashboard/forecast-card";
 import { KpiGrid } from "@/components/dashboard/kpi-grid";
+import { NeedsAttentionCard } from "@/components/dashboard/needs-attention";
 import { OpportunitiesSection } from "@/components/dashboard/opportunities-section";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PersonalTargetCard } from "@/components/dashboard/personal-target-card";
@@ -27,6 +28,8 @@ export function OverviewView() {
           {/* Sub-users see their own target progress here; the card renders
               nothing for owners (they use the org forecast below). */}
           <PersonalTargetCard />
+
+          <NeedsAttentionCard />
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.6fr_1fr]">
             <PipelineChart />

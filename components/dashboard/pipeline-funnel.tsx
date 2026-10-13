@@ -1,12 +1,12 @@
 "use client";
 
-import { ArrowRight, TrendingDown } from "lucide-react";
+import { TrendingDown } from "lucide-react";
 
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn, formatCurrency, formatCurrencyCompact, formatPercent, STAGE_DOT_STYLES } from "@/lib/utils";
+import { cn, formatCurrency, formatCurrencyCompact, STAGE_DOT_STYLES } from "@/lib/utils";
 
 export function PipelineFunnel({ className }: { className?: string }) {
   const { funnel, isLoading, currency } = usePipeline();
@@ -28,23 +28,20 @@ export function PipelineFunnel({ className }: { className?: string }) {
   }
 
   const maxCount = Math.max(...funnel.map((stage) => stage.reachedCount), 1);
-  const first = funnel[0];
-  const last = funnel[funnel.length - 1];
-  const overallConversion =
-    first && last && first.reachedCount ? (last.reachedCount / first.reachedCount) * 100 : 0;
+  const totalDeals = funnel.reduce((total, stage) => total + stage.reachedCount, 0);
 
   return (
     <Card className={cn("flex flex-col", className)}>
       <div className="flex items-start justify-between gap-3 border-b border-border p-5">
         <div className="space-y-1">
-          <h2 className="text-[15px] font-semibold tracking-tight">Pipeline funnel</h2>
+          <h2 className="text-[15px] font-semibold tracking-tight">Deals by stage</h2>
           <p className="text-[13px] text-muted-foreground">
-            Deals that reached each stage, with stage-to-stage conversion
+            How many deals sit in each stage right now — a snapshot, not stage-to-stage conversion
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-2xs font-semibold text-muted-foreground">
           <TrendingDown className="h-3 w-3" aria-hidden="true" />
-          {formatPercent(overallConversion, 0)} end-to-end
+          {totalDeals} total
         </span>
       </div>
 
@@ -99,17 +96,6 @@ export function PipelineFunnel({ className }: { className?: string }) {
                     {stage.stage}: {stage.reachedCount} deals · {formatCurrency(stage.reachedValue, currency)}
                   </TooltipContent>
                 </Tooltip>
-
-                <span className="w-14 shrink-0 text-right text-2xs font-medium tabular text-muted-foreground">
-                  {index === 0 ? (
-                    "—"
-                  ) : (
-                    <span className="inline-flex items-center gap-0.5">
-                      <ArrowRight className="h-2.5 w-2.5" aria-hidden="true" />
-                      {formatPercent(stage.conversionRate ?? 0, 0)}
-                    </span>
-                  )}
-                </span>
               </div>
             </div>
           );
@@ -117,8 +103,8 @@ export function PipelineFunnel({ className }: { className?: string }) {
       </div>
 
       <div className="border-t border-border px-5 py-3 text-2xs text-muted-foreground">
-        Conversion is calculated from the deals that progressed past each stage, so it updates the
-        moment a deal moves.
+        Counts reflect where deals are today. SalesFlow does not track when deals entered a stage,
+        so no historical conversion is shown.
       </div>
     </Card>
   );

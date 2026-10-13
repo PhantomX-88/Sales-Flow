@@ -2,7 +2,6 @@
 
 import { ForecastCard } from "@/components/dashboard/forecast-card";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PeriodTabs } from "@/components/dashboard/page-header";
 import { PipelineChart } from "@/components/dashboard/pipeline-chart";
 import { PipelineFunnel } from "@/components/dashboard/pipeline-funnel";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
@@ -17,10 +16,8 @@ export function ForecastView() {
     <div className="space-y-6">
       <PageHeader
         title="Forecast"
-        description={`Revenue forecasting for ${metadata.period} — commit, best case and pipeline coverage against target.`}
-      >
-        <PeriodTabs />
-      </PageHeader>
+        description={`Commit, best case and weighted pipeline against the ${metadata.period.toLowerCase()} target for ${forecast.windowStart} → ${forecast.windowEnd}. Open deals count only when their expected close date falls inside that window.`}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="p-5">
@@ -36,7 +33,7 @@ export function ForecastView() {
         </Card>
         <Card className="p-5">
           <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-            Pipeline coverage
+            Weighted coverage of gap
           </p>
           <p className="mt-1 text-[22px] font-bold leading-none tabular">
             {forecast.gapToTarget
@@ -44,7 +41,8 @@ export function ForecastView() {
               : "Target met"}
           </p>
           <p className="mt-2 text-2xs text-muted-foreground">
-            Weighted pipeline vs {formatCurrency(forecast.gapToTarget, currency)} remaining gap
+            Weighted forecast ÷ {formatCurrency(forecast.gapToTarget, currency)} still needed to
+            hit target
           </p>
         </Card>
         <Card className="p-5">

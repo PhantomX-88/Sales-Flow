@@ -198,7 +198,7 @@ async function desktopPass() {
   const kpis = await evaluate("window.__qa.text()");
   check(
     "derived KPIs, chart and forecast render",
-    kpis.includes("$1.4M") && kpis.includes("Win rate") && kpis.includes("Forecast confidence"),
+    kpis.includes("$1.4M") && kpis.includes("Win rate") && kpis.includes("Projected target coverage"),
   );
 
   // Search ---------------------------------------------------------------
@@ -412,7 +412,7 @@ async function desktopPass() {
   // Other views ----------------------------------------------------------
   for (const [nav, expected] of [
     ["Settings", "WORKSPACE SETTINGS"],
-    ["Forecast", "FORECAST CONFIDENCE"],
+    ["Forecast", "PROJECTED TARGET COVERAGE"],
     ["Accounts", "OPEN VALUE"],
     ["Tasks", "REMAINING"],
     ["Activities", "ACTIVITY LOG"],

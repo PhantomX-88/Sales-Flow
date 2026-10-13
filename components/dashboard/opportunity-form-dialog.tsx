@@ -44,6 +44,8 @@ function emptyDraft(owner: string): OpportunityDraft {
     leadSource: BASE_SOURCES[0] ?? "Referral",
     owner,
     notes: "",
+    accountId: undefined,
+    contactId: undefined,
   };
 }
 
@@ -60,6 +62,8 @@ function draftFromOpportunity(opportunity: Opportunity): OpportunityDraft {
     leadSource: opportunity.leadSource,
     owner: opportunity.owner,
     notes: opportunity.notes ?? "",
+    accountId: opportunity.accountId,
+    contactId: opportunity.contactId,
   };
 }
 
@@ -99,7 +103,8 @@ export function OpportunityFormDialog({
   onOpenChange,
   opportunity = null,
 }: OpportunityFormDialogProps) {
-  const { createOpportunity, updateOpportunity, ownerNames, metadata, currency } = usePipeline();
+  const { createOpportunity, updateOpportunity, ownerNames, metadata, currency, accountRecords, contactRecords } =
+    usePipeline();
   const isEdit = Boolean(opportunity);
   const [draft, setDraft] = React.useState<OpportunityDraft>(() => emptyDraft(ownerNames[0] ?? ""));
   const [errors, setErrors] = React.useState<FieldErrors>({});
@@ -131,6 +136,59 @@ export function OpportunityFormDialog({
     }));
     setErrors((current) => ({ ...current, stage: undefined, probability: undefined }));
   };
+
+  /**
+   * Company/contact stay plain text — legacy fields are always saved. When the
+   * text exactly matches an existing record (case-insensitive) the deal links
+   * to it; otherwise the provider creates the record on save. No fuzzy merging.
+   */
+  const handleCompanyChange = (value: string) => {
+    const match = accountRecords.find(
+      (account) => account.name.trim().toLowerCase() === value.trim().toLowerCase(),
+    );
+    setDraft((current) => {
+      const contact = contactRecords.find((record) => record.id === current.contactId);
+      const contactMatchesCompany = contact
+        ? !contact.accountId || contact.accountId === match?.id
+        : current.company.trim().toLowerCase() === value.trim().toLowerCase();
+      return {
+        ...current,
+        company: value,
+        accountId: match?.id,
+        contactId: contactMatchesCompany ? current.contactId : undefined,
+      };
+    });
+    setErrors((current) => ({ ...current, company: undefined }));
+  };
+
+  const handleContactChange = (value: string) => {
+    const term = value.trim().toLowerCase();
+    const candidates = contactRecords.filter(
+      (contact) =>
+        contact.fullName.trim().toLowerCase() === term &&
+        (!contact.accountId || contact.accountId === draft.accountId),
+    );
+    const match =
+      candidates.length === 1
+        ? candidates[0]
+        : candidates.find((contact) => (contact.email ?? "").toLowerCase() === draft.email.trim().toLowerCase());
+    setDraft((current) => ({
+      ...current,
+      contact: value,
+      contactId: match?.id,
+      email: match && !current.email.trim() ? match.email ?? "" : current.email,
+      phone: match && !current.phone.trim() ? match.phone ?? "" : current.phone,
+    }));
+    setErrors((current) => ({ ...current, contact: undefined }));
+  };
+
+  const scopedContacts = React.useMemo(
+    () =>
+      contactRecords.filter(
+        (contact) => !contact.accountId || contact.accountId === draft.accountId,
+      ),
+    [contactRecords, draft.accountId],
+  );
 
   const validate = (): FieldErrors => {
     const next: FieldErrors = {};
@@ -196,11 +254,12 @@ export function OpportunityFormDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Company name *" htmlFor="opp-company" error={errors.company}>
+            <Field label="Company name *" htmlFor="opp-company" error={errors.company} hint="Pick an existing company or type a new one — a company record is created automatically.">
               <Input
                 id="opp-company"
                 value={draft.company}
-                onChange={(event) => update("company", event.target.value)}
+                onChange={(event) => handleCompanyChange(event.target.value)}
+                list="salesflow-account-options"
                 placeholder="Meridian Health"
                 aria-invalid={Boolean(errors.company)}
                 aria-describedby={errors.company ? "opp-company-error" : undefined}
@@ -208,17 +267,29 @@ export function OpportunityFormDialog({
               />
             </Field>
 
-            <Field label="Contact name" htmlFor="opp-contact" error={errors.contact}>
+            <Field label="Contact name" htmlFor="opp-contact" error={errors.contact} hint="Choose a saved contact for this company or type a new name.">
               <Input
                 id="opp-contact"
                 value={draft.contact}
-                onChange={(event) => update("contact", event.target.value)}
+                onChange={(event) => handleContactChange(event.target.value)}
+                list="salesflow-contact-options"
                 placeholder="Chidi Okafor"
                 aria-invalid={Boolean(errors.contact)}
                 aria-describedby={errors.contact ? "opp-contact-error" : undefined}
                 autoComplete="name"
               />
             </Field>
+
+            <datalist id="salesflow-account-options">
+              {accountRecords.map((account) => (
+                <option key={account.id} value={account.name} />
+              ))}
+            </datalist>
+            <datalist id="salesflow-contact-options">
+              {scopedContacts.map((contact) => (
+                <option key={contact.id} value={contact.fullName} />
+              ))}
+            </datalist>
 
             <Field label="Email" htmlFor="opp-email" error={errors.email}>
               <Input

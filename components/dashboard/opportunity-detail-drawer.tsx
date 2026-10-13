@@ -93,6 +93,8 @@ export function OpportunityDetailDrawer() {
     addActivity,
     today,
     currency,
+    logActivityIntent,
+    clearLogActivityIntent,
   } = usePipeline();
   const { membershipRole } = useAuth();
   // Sub-users have no delete policy in RLS — hide the action entirely.
@@ -107,6 +109,14 @@ export function OpportunityDetailDrawer() {
   /* Phase 4: owner-only reassignment picker state. */
   const [teamMembers, setTeamMembers] = React.useState<{ userId: string; fullName: string }[]>([]);
   const [reassignTo, setReassignTo] = React.useState("");
+
+  /* "Log activity" from the Needs attention queue opens this drawer ready. */
+  React.useEffect(() => {
+    if (logActivityIntent && selectedOpportunity?.id === logActivityIntent) {
+      setLoggingActivity(true);
+      clearLogActivityIntent();
+    }
+  }, [clearLogActivityIntent, logActivityIntent, selectedOpportunity?.id]);
 
   React.useEffect(() => {
     if (membershipRole !== "owner") return;

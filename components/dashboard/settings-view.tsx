@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, MonitorPlay } from "lucide-react";
+import { Download, MonitorPlay, Upload } from "lucide-react";
 
 import { OrganizationSetupForm } from "@/components/auth/organization-setup-form";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -60,16 +60,8 @@ function ToggleRow({
 
 export function SettingsView() {
   const { organization, membershipRole } = useAuth();
-  const {
-    settings,
-    updateSettings,
-    exportCsv,
-    metadata,
-    opportunities,
-    forecast,
-    isLoading,
-    currency,
-  } = usePipeline();
+  const { settings, updateSettings, exportCsv, openImportDialog, metadata, opportunities, forecast, isLoading, currency } =
+    usePipeline();
 
   return (
     <div className="space-y-6">
@@ -184,6 +176,10 @@ export function SettingsView() {
           </dl>
 
           <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={openImportDialog} disabled={isLoading}>
+              <Upload className="h-4 w-4" />
+              Import deals CSV
+            </Button>
             <Button variant="outline" size="sm" onClick={() => exportCsv()} disabled={isLoading || !opportunities.length}>
               <Download className="h-4 w-4" />
               Export pipeline CSV
@@ -215,7 +211,7 @@ export function SettingsView() {
         <Card className="p-5">
           <div className="mb-5">
             <h2 className="text-[15px] font-semibold tracking-tight">Organization profile</h2>
-            <p className="mt-1 text-[13px] text-muted-foreground">Company details, targets, and enabled modules.</p>
+            <p className="mt-1 text-[13px] text-muted-foreground">Company details and revenue target.</p>
           </div>
           <OrganizationSetupForm mode="settings" initial={organization} />
         </Card>

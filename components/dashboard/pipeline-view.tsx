@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { NeedsAttentionCard } from "@/components/dashboard/needs-attention";
 import { OpportunitiesSection } from "@/components/dashboard/opportunities-section";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Card } from "@/components/ui/card";
@@ -60,6 +61,7 @@ export function PipelineView() {
         showFilter
       />
 
+      <NeedsAttentionCard />
       <SummaryStrip />
       <OpportunitiesSection />
     </div>

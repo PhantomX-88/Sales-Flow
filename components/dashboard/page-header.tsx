@@ -20,7 +20,7 @@ export function PeriodTabs({ className }: { className?: string }) {
 
   return (
     <Tabs value={chartRange} onValueChange={(value) => setChartRange(value as ChartRangeKey)}>
-      <TabsList className={cn("h-9", className)} aria-label="Select reporting period">
+      <TabsList className={cn("h-9", className)} aria-label="Select revenue chart date range">
         {PERIODS.map((period) => (
           <TabsTrigger key={period.value} value={period.value}>
             {period.label}

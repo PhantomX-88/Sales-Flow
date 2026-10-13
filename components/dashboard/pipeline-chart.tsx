@@ -86,9 +86,6 @@ export function PipelineChart({ className }: { className?: string }) {
     [data],
   );
 
-  const conversion =
-    totals.pipeline > 0 ? ((totals.won / totals.pipeline) * 100).toFixed(1) : "0.0";
-
   const colors = useChartColors();
 
   if (isLoading) {
@@ -128,12 +125,6 @@ export function PipelineChart({ className }: { className?: string }) {
             <p className="text-sm font-semibold tabular">
               {formatCurrencyCompact(totals.won, currency)}
             </p>
-          </div>
-          <div>
-            <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
-              Conversion
-            </p>
-            <p className="text-sm font-semibold tabular">{conversion}%</p>
           </div>
         </div>
       </div>

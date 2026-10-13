@@ -9,6 +9,7 @@ import {
   Search,
   SlidersHorizontal,
   Table2,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -31,6 +32,8 @@ export function OpportunitiesSection() {
     searchQuery,
     setSearchQuery,
     exportCsv,
+    openImportDialog,
+    openCreateDialog,
     toggleFilters,
     filtersOpen,
     activeFilterCount,
@@ -121,6 +124,16 @@ export function OpportunitiesSection() {
 
           <Tooltip>
             <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9" onClick={openImportDialog}>
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">Import</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Import deals from a CSV file</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button variant="outline" size="sm" className="h-9" onClick={() => exportCsv()}>
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Export</span>
@@ -151,8 +164,18 @@ export function OpportunitiesSection() {
                 ))}
               </div>
             ) : visible.length === 0 ? (
-              <div className="rounded-xl border border-border bg-card p-8 text-center text-[13px] text-muted-foreground">
-                No opportunities found. Try changing your filters or search terms.
+              <div className="rounded-xl border border-border bg-card p-8 text-center">
+                <p className="text-[13px] text-muted-foreground">
+                  No opportunities found. Try changing your filters or search terms.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <Button size="sm" onClick={openCreateDialog}>
+                    Add a deal
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={openImportDialog}>
+                    Import CSV
+                  </Button>
+                </div>
               </div>
             ) : (
               visible.map((opportunity) => (

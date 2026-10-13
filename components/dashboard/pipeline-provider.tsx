@@ -4,6 +4,8 @@ import * as React from "react";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { toast } from "@/components/ui/use-toast";
+import { buildAttentionQueue, type AttentionItem } from "@/lib/attention";
+import type { ImportJob, ImportJobResult, NormalizedDeal } from "@/lib/csv-import";
 import {
   buildExportRows,
   computeAccounts,
@@ -24,10 +26,12 @@ import {
 } from "@/lib/metrics";
 import { dataset, KANBAN_STAGES, ownerNames as configuredOwnerNames, TODAY } from "@/lib/pipeline-config";
 import type {
+  AccountRecord,
   AccountSummary,
   Activity,
   ActivityType,
   ChartRangeKey,
+  ContactRecord,
   DashboardSettings,
   DashboardView,
   Filters,
@@ -55,6 +59,20 @@ const DEFAULT_FILTERS: Filters = {
   valueBucket: "all",
   dateField: "expectedCloseDate",
   dateRange: "all",
+};
+
+type AccountContactInput = {
+  company: string;
+  contact: string;
+  email?: string;
+  phone?: string;
+  accountId?: string;
+  contactId?: string;
+};
+
+type AccountContactCache = {
+  accounts: AccountRecord[];
+  contacts: ContactRecord[];
 };
 
 const DEFAULT_SORT: SortState = { key: "value", direction: "desc" };
@@ -142,6 +160,9 @@ interface PipelineContextValue {
   isCreateOpen: boolean;
   openCreateDialog: () => void;
   closeCreateDialog: () => void;
+  isImportOpen: boolean;
+  openImportDialog: () => void;
+  closeImportDialog: () => void;
   editingOpportunity: Opportunity | null;
   openEditDialog: (id: string) => void;
   closeEditDialog: () => void;
@@ -171,6 +192,40 @@ interface PipelineContextValue {
     meta?: { nextStep?: string; dueDate?: string },
   ) => void;
   exportCsv: (rows?: Opportunity[], filename?: string) => void;
+
+  /* Phase 1 — attention queue */
+  attention: AttentionItem[];
+  loadError: string | null;
+  recordsLoadError: string | null;
+  /** Opens the deal drawer with the activity/next-step form ready. */
+  openActivityLog: (id: string) => void;
+  /** Opportunity id whose drawer should start on the activity form. */
+  logActivityIntent: string | null;
+  clearLogActivityIntent: () => void;
+
+  /* Phase 1 — CSV import (RLS-scoped, sequential with per-row results) */
+  importDeals: (jobs: ImportJob[]) => Promise<ImportJobResult[]>;
+  /** Display names of active members eligible to own imported deals. */
+  eligibleOwners: string[];
+
+  /* Phase 1 — accounts & contacts */
+  accountRecords: AccountRecord[];
+  contactRecords: ContactRecord[];
+  saveAccount: (name: string) => Promise<AccountRecord | null>;
+  saveContact: (input: {
+    fullName: string;
+    email?: string;
+    phone?: string;
+    accountId?: string;
+  }) => Promise<ContactRecord | null>;
+  updateAccount: (
+    id: string,
+    patch: Partial<Pick<AccountRecord, "name" | "website" | "industry" | "notes">>,
+  ) => Promise<boolean>;
+  updateContact: (
+    id: string,
+    patch: Partial<Pick<ContactRecord, "fullName" | "title" | "email" | "phone" | "notes" | "accountId">>,
+  ) => Promise<boolean>;
 
   /* settings */
   settings: DashboardSettings;
@@ -212,6 +267,8 @@ function draftToOpportunity(
     closedDate: isClosedStage ? (existing?.closedDate ?? today) : undefined,
     probabilityOverridden:
       !isClosedStage && probability !== defaultProbabilityFor(draft.stage),
+    accountId: draft.accountId,
+    contactId: draft.contactId,
   };
 }
 
@@ -234,6 +291,8 @@ function toOpportunityRow(opportunity: Opportunity, organizationId: string) {
     notes: opportunity.notes ?? null,
     closed_date: opportunity.closedDate ?? null,
     probability_overridden: opportunity.probabilityOverridden ?? false,
+    account_id: opportunity.accountId ?? null,
+    contact_id: opportunity.contactId ?? null,
   };
 }
 
@@ -261,6 +320,8 @@ function fromOpportunityRow(row: Record<string, unknown>): Opportunity {
     notes: row.notes ? String(row.notes) : undefined,
     closedDate: row.closed_date ? String(row.closed_date) : undefined,
     probabilityOverridden: Boolean(row.probability_overridden),
+    accountId: row.account_id ? String(row.account_id) : undefined,
+    contactId: row.contact_id ? String(row.contact_id) : undefined,
   };
 }
 
@@ -287,9 +348,38 @@ function fromActivityRow(row: Record<string, unknown>): Activity {
     type,
     text: String(row.text),
     time: row.created_at ? new Date(String(row.created_at)).toLocaleString() : "Just now",
+    createdAt: row.created_at ? String(row.created_at) : undefined,
     opportunityId: row.opportunity_id ? String(row.opportunity_id) : undefined,
     nextStep: row.next_step ? String(row.next_step) : undefined,
     dueDate: row.due_date ? String(row.due_date) : undefined,
+  };
+}
+
+function fromAccountRow(row: Record<string, unknown>): AccountRecord {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    name: String(row.name),
+    website: row.website ? String(row.website) : undefined,
+    industry: row.industry ? String(row.industry) : undefined,
+    notes: row.notes ? String(row.notes) : undefined,
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+  };
+}
+
+function fromContactRow(row: Record<string, unknown>): ContactRecord {
+  return {
+    id: String(row.id),
+    organizationId: String(row.organization_id),
+    accountId: row.account_id ? String(row.account_id) : undefined,
+    fullName: String(row.full_name),
+    title: row.title ? String(row.title) : undefined,
+    email: row.email ? String(row.email) : undefined,
+    phone: row.phone ? String(row.phone) : undefined,
+    notes: row.notes ? String(row.notes) : undefined,
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };
 }
 
@@ -305,6 +395,12 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   const [activities, setActivities] = React.useState<Activity[]>([]);
   const [deletionRequests, setDeletionRequests] = React.useState<DeletionRequest[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [recordsLoadError, setRecordsLoadError] = React.useState<string | null>(null);
+  const [accountRecords, setAccountRecords] = React.useState<AccountRecord[]>([]);
+  const [contactRecords, setContactRecords] = React.useState<ContactRecord[]>([]);
+  const [memberNames, setMemberNames] = React.useState<{ userId: string; fullName: string }[]>([]);
+  const [logActivityIntent, setLogActivityIntent] = React.useState<string | null>(null);
   const [personalTarget, setPersonalTarget] = React.useState<{ amount: number; period: string } | null>(null);
 
   const [searchQuery, setSearchQueryState] = React.useState("");
@@ -322,6 +418,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
 
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [isCreateOpen, setCreateOpen] = React.useState(false);
+  const [isImportOpen, setImportOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -347,7 +444,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       // Sentinel UUID keeps the query valid while userId is still null;
       // it never matches a real row.
       const targetUserId = userId ?? "00000000-0000-0000-0000-000000000000";
-      const [opportunitiesResult, activitiesResult, targetResult, deletionResult] = await Promise.all([
+      const [opportunitiesResult, activitiesResult, targetResult, deletionResult, accountsResult, contactsResult, membersResult] = await Promise.all([
         opportunitiesQuery.order("created_at", { ascending: false }),
         supabase.from("activities").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
         supabase
@@ -365,11 +462,22 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
           )
           .eq("organization_id", organizationId)
           .order("created_at", { ascending: false }),
+        // Phase 1: shared account/contact records — RLS scopes them to the org.
+        supabase.from("accounts").select("*").eq("organization_id", organizationId).order("name"),
+        supabase.from("contacts").select("*").eq("organization_id", organizationId).order("full_name"),
+        // Eligible owners for imports/assignment (RLS: reps see themselves only).
+        supabase
+          .from("organization_members")
+          .select("user_id, status")
+          .eq("organization_id", organizationId)
+          .eq("status", "active"),
       ]);
       if (!mounted) return;
       if (opportunitiesResult.error || activitiesResult.error) {
+        setLoadError("Could not load organization data. Check your connection and Row Level Security policies, then reload.");
         toast({ title: "Could not load organization data.", description: "Check your Supabase tables and Row Level Security policies.", variant: "destructive" });
       } else {
+        setLoadError(null);
         const loadedOpportunities = (opportunitiesResult.data ?? []).map((row) =>
           fromOpportunityRow(row as Record<string, unknown>),
         );
@@ -390,6 +498,41 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
             reviewedAt: row.reviewed_at ? String(row.reviewed_at) : undefined,
           })),
         );
+        if (accountsResult.error || contactsResult.error) {
+          setRecordsLoadError(
+            "Company and contact records could not load. Check the Phase 1 database migration and Row Level Security policies, then reload.",
+          );
+        } else {
+          setRecordsLoadError(null);
+          setAccountRecords(
+            ((accountsResult.data ?? []) as Record<string, unknown>[]).map(fromAccountRow),
+          );
+          setContactRecords(
+            ((contactsResult.data ?? []) as Record<string, unknown>[]).map(fromContactRow),
+          );
+        }
+        const memberRows = ((membersResult.data ?? []) as { user_id: string }[]) ?? [];
+        if (memberRows.length) {
+          const profilesResult = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", memberRows.map((row) => row.user_id));
+          if (!profilesResult.error && mounted) {
+            const namesById = new Map(
+              ((profilesResult.data ?? []) as { id: string; full_name: string | null }[]).map(
+                (profile) => [profile.id, profile.full_name?.trim() ?? ""],
+              ),
+            );
+            setMemberNames(
+              memberRows.map((row) => ({
+                userId: row.user_id,
+                fullName: namesById.get(row.user_id) || displayName || "Team member",
+              })),
+            );
+          }
+        } else if (userId && displayName) {
+          setMemberNames([{ userId, fullName: displayName }]);
+        }
       }
       if (!targetResult.error) {
         setPersonalTarget(
@@ -405,7 +548,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [isAuthenticated, isReady, organizationId, membershipRole, userId]);
+  }, [displayName, isAuthenticated, isReady, organizationId, membershipRole, userId]);
 
   const setSearchQuery = React.useCallback((value: string) => {
     setSearchQueryState(value);
@@ -517,29 +660,43 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     () => computeMonthlyRevenue(liveOpportunities, TODAY),
     [liveOpportunities],
   );
-  const kpis = React.useMemo(
-    () => computeKpis(liveOpportunities, monthlyRevenue, TODAY, currency),
-    [currency, monthlyRevenue, liveOpportunities],
-  );
   const funnel = React.useMemo(() => computeFunnel(liveOpportunities), [liveOpportunities]);
   const repPerformance = React.useMemo(
     () => computeRepPerformance(liveOpportunities, organizationOwners),
     [liveOpportunities, organizationOwners],
   );
-  const forecast = React.useMemo(() => {
+  // Single target-period definition shared by the forecast card, the KPI
+  // strip and the forecast view — see computeForecast for the rules.
+  const forecastTargets = React.useMemo(() => {
     const resolvedPeriod =
-      membershipRole === "sales_rep" && personalTarget && (personalTarget.period === "monthly" || personalTarget.period === "annual")
+      membershipRole === "sales_rep" &&
+      personalTarget &&
+      (personalTarget.period === "monthly" ||
+        personalTarget.period === "quarterly" ||
+        personalTarget.period === "annual")
         ? personalTarget.period
         : organization?.targetPeriod ?? "quarterly";
     const resolvedTarget =
       membershipRole === "sales_rep" && personalTarget ? personalTarget.amount : organization?.revenueTarget ?? 0;
-    return computeForecast(
-      liveOpportunities,
-      { amount: resolvedTarget, period: resolvedPeriod },
-      TODAY,
-    );
-  }, [membershipRole, liveOpportunities, organization?.targetPeriod, organization?.revenueTarget, personalTarget]);
-  const accounts = React.useMemo(() => computeAccounts(liveOpportunities, TODAY), [liveOpportunities]);
+    return { amount: resolvedTarget, period: resolvedPeriod };
+  }, [membershipRole, organization?.targetPeriod, organization?.revenueTarget, personalTarget]);
+
+  const forecast = React.useMemo(
+    () => computeForecast(liveOpportunities, forecastTargets, TODAY),
+    [liveOpportunities, forecastTargets],
+  );
+  const kpis = React.useMemo(
+    () => computeKpis(liveOpportunities, monthlyRevenue, forecastTargets, TODAY, currency),
+    [currency, forecastTargets, monthlyRevenue, liveOpportunities],
+  );
+  const accounts = React.useMemo(
+    () => computeAccounts(liveOpportunities, activities, TODAY),
+    [activities, liveOpportunities],
+  );
+  const attention = React.useMemo(
+    () => buildAttentionQueue(liveOpportunities, activities, TODAY),
+    [activities, liveOpportunities],
+  );
   const tasks = React.useMemo(() => {
     const toneWeight = { danger: 0, warning: 1, info: 2 } as const;
     return [
@@ -582,12 +739,152 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
       setActivities((current) => [
-        { ...activity, id: String(data.id), time: data.created_at ? new Date(data.created_at).toLocaleString() : "Just now" },
+        {
+          ...activity,
+          id: String(data.id),
+          time: data.created_at ? new Date(data.created_at).toLocaleString() : "Just now",
+          createdAt: data.created_at ? String(data.created_at) : new Date().toISOString(),
+        },
         ...current,
       ]);
       return true;
     },
     [organizationId],
+  );
+
+  /**
+   * Resolve shared account/contact links for a draft. Existing records are
+   * matched by exact (case-insensitive) name — never by fuzzy text — and a
+   * new record is created only when there is no match. Ambiguous contact
+   * matches stay unlinked (legacy free-text fields remain untouched).
+   */
+  const resolveAccountContact = React.useCallback(
+    async (
+      draft: AccountContactInput,
+      targetOrganizationId = organizationId,
+      cache: AccountContactCache = {
+        accounts: [...accountRecords],
+        contacts: [...contactRecords],
+      },
+    ): Promise<{ accountId?: string; contactId?: string } | null> => {
+      if (!targetOrganizationId) {
+        toast({ title: "Company/contact links could not be resolved.", description: "Your organization is still loading.", variant: "destructive" });
+        return null;
+      }
+      const supabase = getSupabaseClient();
+      const companyName = draft.company.trim();
+      const contactName = draft.contact.trim();
+
+      let accountId = draft.accountId;
+      if (!accountId && companyName) {
+        const match = cache.accounts.find(
+          (account) => account.name.trim().toLowerCase() === companyName.toLowerCase(),
+        );
+        if (match) {
+          accountId = match.id;
+        } else {
+          const { data: created, error } = await supabase
+            .from("accounts")
+            .insert({ organization_id: targetOrganizationId, name: companyName })
+            .select()
+            .single();
+          if (error?.code === "23505") {
+            const { data: existing, error: lookupError } = await supabase
+              .from("accounts")
+              .select("*")
+              .eq("organization_id", targetOrganizationId);
+            const existingMatch = (existing ?? []).find(
+              (row) =>
+                String(row.name).trim().toLowerCase() === companyName.toLowerCase(),
+            );
+            if (lookupError || !existingMatch) {
+              toast({
+                title: "Company could not be resolved.",
+                description: lookupError?.message ?? error.message,
+                variant: "destructive",
+              });
+              return null;
+            }
+            const record = fromAccountRow(existingMatch as Record<string, unknown>);
+            accountId = record.id;
+            cache.accounts.push(record);
+            setAccountRecords((current) =>
+              current.some((account) => account.id === record.id)
+                ? current
+                : [...current, record].sort((a, b) => a.name.localeCompare(b.name)),
+            );
+          } else if (error || !created) {
+            toast({
+              title: "Company could not be saved.",
+              description: error?.message ?? "No company record was returned.",
+              variant: "destructive",
+            });
+            return null;
+          } else {
+            const record = fromAccountRow(created as Record<string, unknown>);
+            accountId = record.id;
+            cache.accounts.push(record);
+            setAccountRecords((current) => [...current, record].sort((a, b) => a.name.localeCompare(b.name)));
+          }
+        }
+      }
+
+      let contactId = draft.contactId;
+      const email = (draft.email ?? "").trim().toLowerCase();
+      const phone = (draft.phone ?? "").trim();
+      if (!contactId && contactName && contactName !== "Unassigned") {
+        const candidates = cache.contacts.filter(
+          (contact) =>
+            contact.accountId === accountId &&
+            contact.fullName.trim().toLowerCase() === contactName.toLowerCase(),
+        );
+        const linked =
+          candidates.find(
+            (contact) =>
+              (email ? (contact.email ?? "").trim().toLowerCase() === email : !(contact.email ?? "")) &&
+              (phone ? (contact.phone ?? "").trim() === phone : true),
+          ) ?? null;
+        if (linked) {
+          contactId = linked.id;
+        } else if (candidates.length === 0) {
+          const { data: created, error } = await supabase
+            .from("contacts")
+            .insert({
+              organization_id: targetOrganizationId,
+              account_id: accountId ?? null,
+              full_name: contactName,
+              email: email || null,
+              phone: phone || null,
+            })
+            .select()
+            .single();
+          if (error || !created) {
+            toast({
+              title: "Contact could not be saved.",
+              description: error?.message ?? "No contact record was returned.",
+              variant: "destructive",
+            });
+            return null;
+          } else {
+            const record = fromContactRow(created as Record<string, unknown>);
+            contactId = record.id;
+            cache.contacts.push(record);
+            setContactRecords((current) => [...current, record].sort((a, b) => a.fullName.localeCompare(b.fullName)));
+          }
+        }
+        // Ambiguous name with conflicting emails: leave unlinked rather than
+        // guess — the user can link explicitly from the deal form.
+        else {
+          toast({
+            title: "Contact was not linked.",
+            description: "More than one contact matches this company and name. Choose the correct contact in the deal form.",
+          });
+        }
+      }
+
+      return { accountId, contactId };
+    },
+    [accountRecords, contactRecords, organizationId],
   );
 
   const createOpportunity = React.useCallback(
@@ -605,8 +902,10 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       }
+      const links = await resolveAccountContact(draft, activeOrganizationId);
+      if (!links) return false;
       const id = crypto.randomUUID();
-      const opportunity = draftToOpportunity(draft, TODAY, id);
+      const opportunity = draftToOpportunity({ ...draft, ...links }, TODAY, id);
       const { data, error } = await getSupabaseClient()
         .from("opportunities")
         .insert(toOpportunityRow(opportunity, activeOrganizationId))
@@ -631,7 +930,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       setCreateOpen(false);
       return true;
     },
-    [pushActivity, resolveOrganization, organizationId],
+    [pushActivity, resolveAccountContact, resolveOrganization, organizationId],
   );
 
   const updateOpportunity = React.useCallback(
@@ -644,7 +943,9 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       if (!existing) return false;
 
       const previousStage = existing.stage;
-      const updated = draftToOpportunity(draft, TODAY, id, existing);
+      const links = await resolveAccountContact(draft, organizationId);
+      if (!links) return false;
+      const updated = draftToOpportunity({ ...draft, ...links }, TODAY, id, existing);
       const stageChanged = updated.stage !== previousStage;
       const { data: saved, error } = await getSupabaseClient()
         .from("opportunities")
@@ -684,7 +985,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       });
       return true;
     },
-    [opportunities, pushActivity, organizationId],
+    [opportunities, pushActivity, resolveAccountContact, organizationId],
   );
 
   const moveStage = React.useCallback(
@@ -1085,15 +1386,237 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   );
 
   const openOpportunity = React.useCallback((id: string) => setSelectedId(id), []);
+
+  /* ------------------------------------------------------------------ */
+  /* Phase 1 — attention queue, CSV import, accounts & contacts          */
+  /* ------------------------------------------------------------------ */
+
+  const openActivityLog = React.useCallback((id: string) => {
+    setLogActivityIntent(id);
+    setSelectedId(id);
+  }, []);
+  const clearLogActivityIntent = React.useCallback(() => setLogActivityIntent(null), []);
+
+  /**
+   * Sequential, RLS-scoped import: every row is written with the signed-in
+   * client (never a service-role key), each result is reported individually,
+   * and failures never mask successes. Safe to retry — rows already imported
+   * surface as duplicates on the next preview.
+   */
+  const importDeals = React.useCallback(
+    async (jobs: ImportJob[]): Promise<ImportJobResult[]> => {
+      if (!organizationId) {
+        return jobs.map((job) => ({
+          rowNumber: job.rowNumber,
+          status: "failed",
+          error: "Your organization is still loading — reload and retry.",
+        }));
+      }
+      const supabase = getSupabaseClient();
+      const results: ImportJobResult[] = [];
+      const linkCache: AccountContactCache = {
+        accounts: [...accountRecords],
+        contacts: [...contactRecords],
+      };
+
+      for (const job of jobs) {
+        const { deal, updateExistingId } = job;
+        const links = await resolveAccountContact(deal, organizationId, linkCache);
+        if (!links) {
+          results.push({
+            rowNumber: job.rowNumber,
+            status: "failed",
+            error: "Company/contact records could not be linked. Correct the issue and retry this row.",
+          });
+          continue;
+        }
+        const ownerId = memberNames.find((member) => member.fullName === deal.owner)?.userId;
+        const shared: Record<string, unknown> = {
+          company: deal.company,
+          contact: deal.contact,
+          email: deal.email ?? null,
+          phone: deal.phone ?? null,
+          stage: deal.stage,
+          value: deal.value,
+          probability: deal.probability,
+          owner: deal.owner,
+          expected_close_date: deal.expectedCloseDate,
+          last_activity: "Just now",
+          lead_source: deal.leadSource,
+          probability_overridden: deal.probabilityOverridden,
+          closed_date: deal.closedDate ?? null,
+          account_id: links.accountId ?? null,
+          contact_id: links.contactId ?? null,
+        };
+        if (ownerId) shared.owner_id = ownerId;
+
+        if (updateExistingId) {
+          const { data, error } = await supabase
+            .from("opportunities")
+            .update(shared)
+            .eq("id", updateExistingId)
+            .eq("organization_id", organizationId)
+            .select("*")
+            .maybeSingle();
+          if (error || !data) {
+            results.push({
+              rowNumber: job.rowNumber,
+              status: "failed",
+              error: error?.message ?? "Row was not updated (it may belong to another organization).",
+            });
+          } else {
+            const saved = fromOpportunityRow(data as Record<string, unknown>);
+            setOpportunities((current) =>
+              current.map((opportunity) => (opportunity.id === saved.id ? saved : opportunity)),
+            );
+            results.push({ rowNumber: job.rowNumber, status: "updated" });
+          }
+          continue;
+        }
+
+        const { data, error } = await supabase
+          .from("opportunities")
+          .insert({ ...shared, organization_id: organizationId, age: 0, created_date: TODAY })
+          .select("*")
+          .single();
+        if (error || !data) {
+          results.push({
+            rowNumber: job.rowNumber,
+            status: "failed",
+            error: error?.message ?? "Row was not inserted.",
+          });
+        } else {
+          setOpportunities((current) => [fromOpportunityRow(data as Record<string, unknown>), ...current]);
+          results.push({ rowNumber: job.rowNumber, status: "inserted" });
+        }
+      }
+
+      return results;
+    },
+    [accountRecords, contactRecords, memberNames, organizationId, resolveAccountContact],
+  );
+
+  const saveAccount = React.useCallback(
+    async (name: string): Promise<AccountRecord | null> => {
+      const trimmed = name.trim();
+      if (!organizationId || !trimmed) return null;
+      const existing = accountRecords.find(
+        (account) => account.name.trim().toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (existing) return existing;
+      const { data, error } = await getSupabaseClient()
+        .from("accounts")
+        .insert({ organization_id: organizationId, name: trimmed })
+        .select()
+        .single();
+      if (error || !data) {
+        toast({ title: "Company could not be saved.", description: error?.message, variant: "destructive" });
+        return null;
+      }
+      const record = fromAccountRow(data as Record<string, unknown>);
+      setAccountRecords((current) => [...current, record].sort((a, b) => a.name.localeCompare(b.name)));
+      return record;
+    },
+    [accountRecords, organizationId],
+  );
+
+  const saveContact = React.useCallback(
+    async (input: {
+      fullName: string;
+      email?: string;
+      phone?: string;
+      accountId?: string;
+    }): Promise<ContactRecord | null> => {
+      const fullName = input.fullName.trim();
+      if (!organizationId || !fullName) return null;
+      const { data, error } = await getSupabaseClient()
+        .from("contacts")
+        .insert({
+          organization_id: organizationId,
+          account_id: input.accountId ?? null,
+          full_name: fullName,
+          email: input.email?.trim() || null,
+          phone: input.phone?.trim() || null,
+        })
+        .select()
+        .single();
+      if (error || !data) {
+        toast({ title: "Contact could not be saved.", description: error?.message, variant: "destructive" });
+        return null;
+      }
+      const record = fromContactRow(data as Record<string, unknown>);
+      setContactRecords((current) => [...current, record].sort((a, b) => a.fullName.localeCompare(b.fullName)));
+      return record;
+    },
+    [organizationId],
+  );
+
+  const updateAccount = React.useCallback(
+    async (
+      id: string,
+      patch: Partial<Pick<AccountRecord, "name" | "website" | "industry" | "notes">>,
+    ): Promise<boolean> => {
+      if (!organizationId) return false;
+      const { error } = await getSupabaseClient()
+        .from("accounts")
+        .update(patch)
+        .eq("id", id)
+        .eq("organization_id", organizationId);
+      if (error) {
+        toast({ title: "Company could not be updated.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      setAccountRecords((current) =>
+        current.map((account) => (account.id === id ? { ...account, ...patch } : account)),
+      );
+      return true;
+    },
+    [organizationId],
+  );
+
+  const updateContact = React.useCallback(
+    async (
+      id: string,
+      patch: Partial<Pick<ContactRecord, "fullName" | "title" | "email" | "phone" | "notes" | "accountId">>,
+    ): Promise<boolean> => {
+      if (!organizationId) return false;
+      const { error } = await getSupabaseClient()
+        .from("contacts")
+        .update(patch)
+        .eq("id", id)
+        .eq("organization_id", organizationId);
+      if (error) {
+        toast({ title: "Contact could not be updated.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      setContactRecords((current) =>
+        current.map((contact) => (contact.id === id ? { ...contact, ...patch } : contact)),
+      );
+      return true;
+    },
+    [organizationId],
+  );
+
   const closeOpportunity = React.useCallback(() => setSelectedId(null), []);
   const openCreateDialog = React.useCallback(() => setCreateOpen(true), []);
   const closeCreateDialog = React.useCallback(() => setCreateOpen(false), []);
+  const openImportDialog = React.useCallback(() => setImportOpen(true), []);
+  const closeImportDialog = React.useCallback(() => setImportOpen(false), []);
   const openEditDialog = React.useCallback((id: string) => setEditingId(id), []);
   const closeEditDialog = React.useCallback(() => setEditingId(null), []);
 
   const toggleFilters = React.useCallback(() => {
     setFiltersOpen((current) => !current);
   }, []);
+
+  /** Active members (plus the signed-in user) eligible to own imported deals. */
+  const eligibleOwners = React.useMemo(() => {
+    const names = new Set<string>();
+    for (const member of memberNames) if (member.fullName) names.add(member.fullName);
+    for (const name of organizationOwnerNames) names.add(name);
+    if (displayName) names.add(displayName);
+    return [...names];
+  }, [displayName, memberNames, organizationOwnerNames]);
 
   const value: PipelineContextValue = {
     metadata: { ...dataset.metadata, currency },
@@ -1105,6 +1628,8 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     ownerNames: organizationOwnerNames.length ? organizationOwnerNames : configuredOwnerNames,
     today: TODAY,
     isLoading,
+    loadError,
+    recordsLoadError,
 
     opportunities,
     activities,
@@ -1140,6 +1665,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     forecast,
     accounts,
     tasks,
+    attention,
 
     view,
     setView,
@@ -1157,6 +1683,9 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     isCreateOpen,
     openCreateDialog,
     closeCreateDialog,
+    isImportOpen,
+    openImportDialog,
+    closeImportDialog,
     editingOpportunity,
     openEditDialog,
     closeEditDialog,
@@ -1175,6 +1704,18 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     reassignOpportunity,
     addActivity,
     exportCsv,
+
+    openActivityLog,
+    logActivityIntent,
+    clearLogActivityIntent,
+    importDeals,
+    eligibleOwners,
+    accountRecords,
+    contactRecords,
+    saveAccount,
+    saveContact,
+    updateAccount,
+    updateContact,
 
     settings,
     updateSettings,

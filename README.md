@@ -266,13 +266,26 @@ Read-only access to permitted information.
 
 The authenticated application uses `organizations` and `organization_members` as its tenant boundary. Existing workspaces are migrated to organizations by preserving their IDs where possible; opportunity and activity records receive the mapped `organization_id`. Existing workspace creators become active owners, and legacy `member` memberships map to `sales_rep`.
 
-Organization setup collects company name, industry, country, unique lowercase tag, expected sub-user count, revenue target and currency, target period, expected deals per month, average deal size, team type, and enabled optional features. Tags are 3-20 lowercase letters, numbers, or hyphens and are unique case-insensitively. Owners can edit these values in Settings. The Features step can be skipped and revisited later.
+Organization setup collects the company name, country, and currency; setting a revenue target is optional. Owners can edit the setup and target in Settings. This keeps initial workspace creation focused on the information needed to get started.
 
-The onboarding and Settings writes use the `save_organization_setup` security-definer RPC. Tag availability is checked by `is_organization_tag_available`; the unique index remains authoritative under concurrent requests. Organization setup changes are recorded in `audit_log`. Organization RLS is active. Until the later sub-user-permission phase is implemented, CRM table reads and writes are owner-only.
+The onboarding and Settings writes use the `save_organization_setup` security-definer RPC. Organization setup changes are recorded in `audit_log`. Organization RLS is active, and CRM access is scoped by organization membership and sales-rep ownership policies.
 
 Before using this phase against a hosted database, run the current `supabase/schema.sql` in the Supabase SQL Editor. The migration aborts if it finds unmapped records, duplicate active organization memberships, organizations without an active owner, or conflicting tags; resolve those rows before rerunning it. Do not apply an earlier copy of the schema.
 
 Current role values are `owner`, `sales_rep`, `admin`, `sales_manager`, and `viewer`. Only `owner` and `sales_rep` are used by the new organization flow; the other existing roles are preserved for later phases.
+
+## Phase 1 — Forecast, CRM, and import
+
+Implemented in the application:
+
+* Forecasts use the organization's configured monthly, quarterly, or annual target period and only include open deals whose expected close dates fall within that period.
+* Pipeline attention identifies stale deals, missing activity, and overdue next steps.
+* CSV imports support column mapping, validation, duplicate review, per-row results, and downloadable failed rows with their original data for correction and retry.
+* Organization-scoped accounts and contacts link to opportunities while retaining the legacy company/contact text fields.
+
+Database prerequisite: apply `supabase/patch-03-accounts-contacts.sql` after `supabase/schema.sql` to add the accounts/contacts tables, organization-safe relationships, and legacy-data backfill. The patch is additive and is not applied automatically. Run the SQL regression checks in `supabase/tests/phase6-tests.sql` after applying it.
+
+The reporting-period tabs on revenue charts select the chart's date range; the forecast target window always comes from the configured target period. Pipeline date filters and CSV export follow the filters currently shown in the pipeline.
 
 ---
 

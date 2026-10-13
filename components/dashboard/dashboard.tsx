@@ -6,6 +6,7 @@ import { AccountsView } from "@/components/dashboard/accounts-view";
 import { ActivitiesView } from "@/components/dashboard/activities-view";
 import { ApprovalsView } from "@/components/dashboard/approvals-view";
 import { ForecastView } from "@/components/dashboard/forecast-view";
+import { ImportDialog } from "@/components/dashboard/import-dialog";
 import { OpportunityDetailDrawer } from "@/components/dashboard/opportunity-detail-drawer";
 import { OpportunityFormDialog } from "@/components/dashboard/opportunity-form-dialog";
 import { OverviewView } from "@/components/dashboard/overview-view";
@@ -46,8 +47,17 @@ function ViewRouter() {
 }
 
 function DashboardShell() {
-  const { view, setView, isCreateOpen, closeCreateDialog, editingOpportunity, closeEditDialog } =
-    usePipeline();
+  const {
+    view,
+    setView,
+    isCreateOpen,
+    closeCreateDialog,
+    isImportOpen,
+    openImportDialog,
+    closeImportDialog,
+    editingOpportunity,
+    closeEditDialog,
+  } = usePipeline();
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -99,6 +109,10 @@ function DashboardShell() {
         open={Boolean(editingOpportunity)}
         onOpenChange={(open) => !open && closeEditDialog()}
         opportunity={editingOpportunity}
+      />
+      <ImportDialog
+        open={isImportOpen}
+        onOpenChange={(open) => (open ? openImportDialog() : closeImportDialog())}
       />
       <OpportunityDetailDrawer />
     </div>

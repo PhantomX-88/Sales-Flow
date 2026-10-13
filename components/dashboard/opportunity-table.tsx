@@ -179,6 +179,8 @@ export function OpportunityTable() {
     setPageSize,
     settings,
     clearAllFilters,
+    openImportDialog,
+    openCreateDialog,
   } = usePipeline();
 
   if (isLoading) return <TableSkeleton rows={6} />;
@@ -192,7 +194,18 @@ export function OpportunityTable() {
           description="Try changing your filters or search terms. Nothing in the current pipeline matches this combination."
           actionLabel="Clear filters"
           onAction={clearAllFilters}
+          secondaryActionLabel="Add a deal"
+          onSecondaryAction={openCreateDialog}
         />
+        <div className="border-t border-border px-6 py-3 text-center">
+          <button
+            type="button"
+            onClick={openImportDialog}
+            className="text-2xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            Import deals from CSV
+          </button>
+        </div>
       </div>
     );
   }

@@ -20,6 +20,7 @@ export function KanbanBoard() {
     settings,
     clearAllFilters,
     openCreateDialog,
+    openImportDialog,
     currency,
   } = usePipeline();
 
@@ -66,7 +67,18 @@ export function KanbanBoard() {
           description="Try changing your filters or search terms. Nothing in the current pipeline matches this combination."
           actionLabel="Clear filters"
           onAction={clearAllFilters}
+          secondaryActionLabel="Add a deal"
+          onSecondaryAction={openCreateDialog}
         />
+        <div className="border-t border-border px-6 py-3 text-center">
+          <button
+            type="button"
+            onClick={openImportDialog}
+            className="text-2xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+          >
+            Import deals from CSV
+          </button>
+        </div>
       </div>
     );
   }
@@ -75,8 +87,8 @@ export function KanbanBoard() {
     <div className="space-y-3">
       <p className="flex items-center gap-1.5 text-2xs text-muted-foreground">
         <Info className="h-3.5 w-3.5" aria-hidden="true" />
-        Drag a card between stages to update it — probability, metrics and the funnel update
-        instantly. On touch devices, use the card menu and choose “Change stage”.
+        Drag a card between stages to update it — probability, metrics and the stage distribution
+        update instantly. On touch devices, use the card menu and choose “Change stage”.
       </p>
 
       <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:px-0">

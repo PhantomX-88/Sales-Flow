@@ -1,4 +1,8 @@
 import {
+  STALE_ACTIVITY_DAYS,
+  lastActivityAt,
+} from "@/lib/attention";
+import {
   CLOSED_STAGES,
   OPEN_STAGES,
   STAGE_ORDER,
@@ -99,7 +103,6 @@ export function computeMetrics(opportunities: Opportunity[], today: string): Pip
 
   return {
     pipelineValue: sumValues(open),
-    weightedForecast: weightedValue(open),
     openCount: open.length,
     winRate,
     averageDealSize: won.length ? sumValues(won) / won.length : 0,
@@ -108,7 +111,6 @@ export function computeMetrics(opportunities: Opportunity[], today: string): Pip
     lostValue: sumValues(lost),
     wonCount: won.length,
     lostCount: lost.length,
-    stalledCount: open.filter((opportunity) => opportunity.age > 25).length,
     overdueCount: open.filter((opportunity) => opportunity.expectedCloseDate < today).length,
     closingThisMonth: open.filter(
       (opportunity) => monthKey(opportunity.expectedCloseDate) === currentMonth,
@@ -117,25 +119,20 @@ export function computeMetrics(opportunities: Opportunity[], today: string): Pip
 }
 
 /**
- * Funnel counts are a stage snapshot: each deal appears once, in the stage it
- * sits in right now. Conversion is current-stage count vs the previous stage.
+ * Stage distribution snapshot: each deal appears once, in the stage it sits in
+ * right now. There is no stage-entry history in the data, so these counts must
+ * never be presented as historical conversion.
  */
 export function computeFunnel(opportunities: Opportunity[]): FunnelStage[] {
   const funnelStages: PipelineStage[] = STAGE_ORDER.filter((stage) => stage !== "Closed Lost");
 
-  return funnelStages.map((stage, index) => {
+  return funnelStages.map((stage) => {
     const current = opportunities.filter((opportunity) => opportunity.stage === stage);
-    const previousStage = index === 0 ? null : funnelStages[index - 1];
-    const previous = previousStage
-      ? opportunities.filter((opportunity) => opportunity.stage === previousStage)
-      : null;
 
     return {
       stage,
       reachedCount: current.length,
       reachedValue: sumValues(current),
-      conversionRate:
-        previous && previous.length ? (current.length / previous.length) * 100 : null,
     };
   });
 }
@@ -183,7 +180,16 @@ export function computeMonthlyRevenue(
   return points;
 }
 
-/** First and last day (ISO) of the current target window for `period`. */
+/**
+ * First and last day (ISO) of the current target window for `period`.
+ *
+ * Boundary/timezone convention used EVERYWHERE a period is referenced
+ * (dashboard, forecast view, pipeline filters, exports): dates are compared as
+ * plain `YYYY-MM-DD` strings in UTC; a date belongs to the window when
+ * `start <= date <= end`, both inclusive. Monthly windows are calendar months,
+ * quarterly windows are Jan–Mar / Apr–Jun / Jul–Sep / Oct–Dec, annual windows
+ * are Jan 1 – Dec 31 of the year containing `today`.
+ */
 export function forecastPeriodWindow(
   period: "monthly" | "quarterly" | "annual",
   today: string,
@@ -241,9 +247,21 @@ export interface ForecastTargets {
 }
 
 /**
- * Tracks closed-won revenue **inside the current target window** against the
- * organization's configured target, so attainment moves as deals are closed
- * this period — not as an all-time total.
+ * Forecast against the organization's configured target window.
+ *
+ * Rules (single target-period definition, shared by the dashboard, forecast
+ * view, pipeline filters and exports):
+ * - Closed revenue = Closed Won deals whose `closedDate` falls inside the
+ *   inclusive window. Closed Lost deals never contribute revenue.
+ * - Open pipeline (weighted, commit, best case) includes only open deals whose
+ *   `expectedCloseDate` falls inside the same inclusive window. An open deal
+ *   expected outside the period does not move this period's forecast.
+ * - Weighted forecast = Σ (amount × probability) over those eligible open
+ *   deals — it always equals the sum of its parts.
+ * - Commit = eligible open deals at an 85%+ probability threshold. It is a
+ *   planning label ("the team's late-stage bets"), not a guarantee.
+ * - Projected target coverage = (closed revenue + weighted forecast) ÷ target.
+ *   A plain ratio — never present it as statistical confidence.
  */
 export function computeForecast(
   opportunities: Opportunity[],
@@ -261,30 +279,38 @@ export function computeForecast(
     ),
   );
 
-  const open = opportunities.filter(isOpen);
-  // Commit = late-stage deals the team expects to land this period.
-  const commit = sumValues(open.filter((opportunity) => opportunity.probability >= 85));
-  // Best case = every open deal closes at full value.
-  const bestCase = sumValues(open);
-  const weighted = weightedValue(open);
+  const openInPeriod = opportunities.filter(
+    (opportunity) =>
+      isOpen(opportunity) &&
+      opportunity.expectedCloseDate >= window.start &&
+      opportunity.expectedCloseDate <= window.end,
+  );
+  // Commit = late-stage open deals in this period at 85%+ probability.
+  const commit = sumValues(openInPeriod.filter((opportunity) => opportunity.probability >= 85));
+  // Best case = every eligible open deal closes at full value.
+  const bestCase = sumValues(openInPeriod);
+  const weighted = weightedValue(openInPeriod);
 
   const target = targets.amount;
   const gapToTarget = Math.max(target - closedRevenue, 0);
   const attainmentPercent = target ? (closedRevenue / target) * 100 : 0;
-  const confidencePercent = target
+  const projectedCoveragePercent = target
     ? clamp(((closedRevenue + weighted) / target) * 100, 0, 100)
     : 0;
 
   return {
     target,
     period: targets.period,
+    windowStart: window.start,
+    windowEnd: window.end,
+    openInPeriodCount: openInPeriod.length,
     closedRevenue,
     commit,
     bestCase,
     weightedForecast: weighted,
     gapToTarget,
     attainmentPercent,
-    confidencePercent,
+    projectedCoveragePercent,
     status: closedRevenue + weighted >= target ? "on-track" : "at-risk",
   };
 }
@@ -296,11 +322,12 @@ export function computeForecast(
 export function computeKpis(
   opportunities: Opportunity[],
   monthlyRevenue: MonthlyRevenuePoint[],
+  targets: ForecastTargets,
   today: string,
   currency: "NGN" | "USD" = "USD",
 ): KpiMetric[] {
   const metrics = computeMetrics(opportunities, today);
-  const open = opportunities.filter(isOpen);
+  const forecast = computeForecast(opportunities, targets, today);
 
   const lastMonth = monthlyRevenue[monthlyRevenue.length - 1];
   const previousMonth = monthlyRevenue[monthlyRevenue.length - 2];
@@ -316,14 +343,6 @@ export function computeKpis(
   const createdThisMonth = opportunities.filter(
     (opportunity) => monthKey(opportunity.createdDate) === currentMonth,
   );
-  const createdLastMonth = opportunities.filter(
-    (opportunity) => monthKey(opportunity.createdDate) === previousMonthKey,
-  );
-  const weightedTrend = percentChange(
-    weightedValue(createdThisMonth),
-    weightedValue(createdLastMonth),
-  );
-
   const decisionsThisMonth = opportunities.filter(
     (opportunity) =>
       isClosed(opportunity) &&
@@ -358,13 +377,10 @@ export function computeKpis(
     {
       id: "weighted-forecast",
       label: "Weighted forecast",
-      value: formatCurrencyCompact(metrics.weightedForecast, currency),
-      supporting: "at current probability",
-      trend:
-        weightedTrend === null
-          ? null
-          : { value: weightedTrend, kind: "percent", label: "vs previous month" },
-      footnote: `${formatCurrencyCompact(metrics.wonValue, currency)} closed won to date`,
+      value: formatCurrencyCompact(forecast.weightedForecast, currency),
+      supporting: `Σ amount × probability · deals closing this ${targets.period === "monthly" ? "month" : targets.period === "annual" ? "year" : "quarter"}`,
+      trend: null,
+      footnote: `${formatCurrencyCompact(forecast.closedRevenue, currency)} closed in this period`,
     },
     {
       id: "open-opportunities",
@@ -399,7 +415,16 @@ export function computeKpis(
 /* Accounts, tasks & notifications                                     */
 /* ------------------------------------------------------------------ */
 
-export function computeAccounts(opportunities: Opportunity[], today: string): AccountSummary[] {
+/**
+ * Accounts roll up from real records: health is overdue close dates (at-risk)
+ * or no logged activity for `STALE_ACTIVITY_DAYS` days (attention) — never the
+ * raw deal age.
+ */
+export function computeAccounts(
+  opportunities: Opportunity[],
+  activities: Activity[],
+  today: string,
+): AccountSummary[] {
   const grouped = new Map<string, Opportunity[]>();
 
   for (const opportunity of opportunities) {
@@ -414,7 +439,11 @@ export function computeAccounts(opportunities: Opportunity[], today: string): Ac
       const won = deals.filter(isWon);
       const lead = open[0] ?? deals[0];
       const overdue = open.some((deal) => deal.expectedCloseDate < today);
-      const stalled = open.some((deal) => deal.age > 25);
+      const stale = open.some((deal) => {
+        const lastAt = lastActivityAt(activities, deal.id);
+        const reference = lastAt ?? deal.createdDate;
+        return daysBetween(today, reference) >= STALE_ACTIVITY_DAYS;
+      });
 
       return {
         company,
@@ -425,7 +454,7 @@ export function computeAccounts(opportunities: Opportunity[], today: string): Ac
         opportunityCount: deals.length,
         primaryStage: lead.stage,
         lastActivity: deals[0].lastActivity,
-        health: overdue ? "at-risk" : stalled ? "attention" : "healthy",
+        health: overdue ? "at-risk" : stale ? "attention" : "healthy",
         opportunityId: lead.id,
       } satisfies AccountSummary;
     })
@@ -459,17 +488,6 @@ export function computeTasks(
         detail: `${formatCurrency(opportunity.value, currency)} · closes in ${daysToClose} ${pluralize(daysToClose, "day")}`,
         dueLabel: `Due in ${daysToClose} ${pluralize(daysToClose, "day")}`,
         tone: "warning",
-        opportunityId: opportunity.id,
-      });
-    }
-
-    if (opportunity.age > 25 && opportunity.stage !== "Negotiation") {
-      tasks.push({
-        id: `${opportunity.id}-stalled`,
-        title: `Re-engage ${opportunity.contact} at ${opportunity.company}`,
-        detail: `${opportunity.stage} · ${opportunity.age} days old`,
-        dueLabel: "Stalled deal",
-        tone: "info",
         opportunityId: opportunity.id,
       });
     }
@@ -667,6 +685,7 @@ export const EXPORT_HEADERS = [
   "Owner",
   "Age",
   "Expected Close Date",
+  "Closed Date",
   "Lead Source",
   "Last Activity",
 ];
@@ -683,6 +702,7 @@ export function buildExportRows(opportunities: Opportunity[]): (string | number)
     opportunity.owner,
     opportunity.age,
     opportunity.expectedCloseDate,
+    opportunity.closedDate ?? "",
     opportunity.leadSource,
     opportunity.lastActivity,
   ]);

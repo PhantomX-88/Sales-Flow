@@ -18,7 +18,7 @@ const TONE_META: Record<
 > = {
   danger: { label: "Overdue", icon: CircleAlert, className: "icon-soft-danger" },
   warning: { label: "Closing soon", icon: Clock, className: "icon-soft-warning" },
-  info: { label: "Stalled", icon: Clock, className: "bg-sky-50 text-sky-600" },
+  info: { label: "Follow-up", icon: Clock, className: "bg-sky-50 text-sky-600" },
 };
 
 export function TasksView() {
@@ -37,7 +37,7 @@ export function TasksView() {
     <div className="space-y-6">
       <PageHeader
         title="Tasks"
-        description="Follow-ups generated from your pipeline: overdue close dates, deals closing this week and stalled opportunities."
+        description="Follow-ups generated from your pipeline: overdue close dates, deals closing this week and overdue next-step reminders. Every task shows the date it came from."
       />
 
       <Card className="p-5">
@@ -47,7 +47,7 @@ export function TasksView() {
               {remaining.length} of {tasks.length} {pluralize(tasks.length, "task")} remaining
             </p>
             <p className="mt-0.5 text-2xs text-muted-foreground">
-              Tasks are derived live from opportunity stage, age and expected close date.
+              Tasks are derived live from expected close dates and follow-up due dates.
             </p>
           </div>
           {completed.length ? (
@@ -64,7 +64,7 @@ export function TasksView() {
           <EmptyState
             icon={CheckCircle2}
             title="Nothing needs attention"
-            description="Every open opportunity is on track — no overdue close dates or stalled deals right now."
+            description="Every open opportunity has a current close date and no overdue follow-ups right now."
           />
         </Card>
       ) : (

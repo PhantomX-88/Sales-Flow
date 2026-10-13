@@ -60,13 +60,14 @@ export function ForecastCard({ className }: { className?: string }) {
 
   const attainment = Math.min(forecast.attainmentPercent, 100);
   const isOnTrack = forecast.status === "on-track";
+  const periodLabel = `${forecast.windowStart} → ${forecast.windowEnd}`;
 
   return (
     <Card className={cn("flex flex-col", className)}>        <div className="flex items-start justify-between gap-3 border-b border-border p-5">
         <div className="space-y-1">
           <h2 className="text-[15px] font-semibold tracking-tight">Forecast</h2>
           <p className="text-[13px] text-muted-foreground">
-            {metadata.period} · target {formatCurrencyCompact(forecast.target, currency)}
+            {metadata.period} · {periodLabel} · target {formatCurrencyCompact(forecast.target, currency)}
           </p>
         </div>
         <Badge variant={isOnTrack ? "success" : "warning"} className="shrink-0">
@@ -121,26 +122,26 @@ export function ForecastCard({ className }: { className?: string }) {
             label="Commit"
             value={forecast.commit}
             currency={currency}
-            hint="Open deals already at 85% probability or higher"
+            hint="Open deals in this period rated 85% or higher — a planning label for late-stage bets, not a guarantee"
             tone="default"
           />
           <ForecastRow
             label="Best case"
             value={forecast.bestCase}
             currency={currency}
-            hint="Every open deal closing at full value"
+            hint="Every open deal in this period closing at full value"
           />
           <ForecastRow
             label="Weighted forecast"
             value={forecast.weightedForecast}
             currency={currency}
-            hint="Open pipeline weighted by current win probability"
+            hint={`Σ amount × probability for open deals expected to close within ${periodLabel} (closed deals excluded)`}
           />
           <ForecastRow
             label="Gap to target"
             value={forecast.gapToTarget}
             currency={currency}
-            hint="Target minus closed-won revenue this period"
+            hint="Target minus closed-won revenue inside this period"
             tone="muted"
           />
         </div>
@@ -157,10 +158,12 @@ export function ForecastCard({ className }: { className?: string }) {
           </span>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold">
-              Forecast confidence {formatPercent(forecast.confidencePercent, 0)}
+              Projected target coverage {formatPercent(forecast.projectedCoveragePercent, 0)}
             </p>
             <p className="text-2xs text-muted-foreground">
-              Closed revenue plus weighted pipeline vs. {forecast.period} target
+              Closed revenue + weighted forecast ÷ {forecast.period} target — a plain ratio, not a
+              probability. {forecast.openInPeriodCount} open{" "}
+              {forecast.openInPeriodCount === 1 ? "deal" : "deals"} closing {periodLabel}.
             </p>
           </div>
         </div>

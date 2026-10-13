@@ -49,6 +49,10 @@ export interface Opportunity {
   deleteReason?: string;
   /** True when an open deletion request exists for this deal. */
   deletionPending?: boolean;
+  /** Optional link to a shared account record (legacy `company` text is kept). */
+  accountId?: string;
+  /** Optional link to a shared contact record (legacy `contact` text is kept). */
+  contactId?: string;
 }
 
 export interface DeletionRequest {
@@ -100,6 +104,8 @@ export interface Activity {
   type: ActivityType;
   text: string;
   time: string;
+  /** Raw ISO timestamp from `created_at`; drives real last-activity math. */
+  createdAt?: string;
   opportunityId?: string;
   /** Optional next step logged with the activity (drives reminders). */
   nextStep?: string;
@@ -214,11 +220,9 @@ export interface KpiMetric {
 
 export interface FunnelStage {
   stage: PipelineStage;
-  /** Deals that reached this stage or beyond. */
+  /** Deals currently sitting in this stage (a snapshot, not stage history). */
   reachedCount: number;
   reachedValue: number;
-  /** Conversion from the previous stage, 0-100. */
-  conversionRate: number | null;
 }
 
 export interface RepPerformance {
@@ -237,19 +241,33 @@ export interface ForecastSummary {
   /** Configured org target for the period. */
   target: number;
   period: "monthly" | "quarterly" | "annual";
+  /**
+   * Inclusive UTC window (YYYY-MM-DD) the forecast figures belong to.
+   * Open deals count only when `expectedCloseDate` falls inside it; closed
+   * revenue counts only when `closedDate` falls inside it.
+   */
+  windowStart: string;
+  windowEnd: string;
+  /** Open deals whose expected close date falls inside the window. */
+  openInPeriodCount: number;
   closedRevenue: number;
+  /** Open deals at the 85%+ probability threshold — a planning label, not a guarantee. */
   commit: number;
   bestCase: number;
   weightedForecast: number;
   gapToTarget: number;
   attainmentPercent: number;
-  confidencePercent: number;
+  /**
+   * Projected target coverage = (closed revenue + weighted forecast) / target.
+   * A plain ratio, not a statistical confidence figure.
+   */
+  projectedCoveragePercent: number;
   status: "on-track" | "at-risk";
 }
 
 export interface PipelineMetrics {
+  /** Sum of all open deal values, regardless of period (view-level stat). */
   pipelineValue: number;
-  weightedForecast: number;
   openCount: number;
   winRate: number;
   averageDealSize: number;
@@ -258,7 +276,6 @@ export interface PipelineMetrics {
   lostValue: number;
   wonCount: number;
   lostCount: number;
-  stalledCount: number;
   overdueCount: number;
   closingThisMonth: number;
 }
@@ -286,6 +303,10 @@ export interface OpportunityDraft {
   leadSource: string;
   owner: string;
   notes: string;
+  /** Selected existing account record (resolved from the company text). */
+  accountId?: string;
+  /** Selected existing contact record (resolved from the contact text). */
+  contactId?: string;
 }
 
 export interface AccountSummary {
@@ -316,4 +337,32 @@ export interface NotificationItem {
   detail: string;
   tone: "danger" | "warning" | "info" | "success";
   opportunityId?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Accounts & contacts (Phase 1 CRM layer)                            */
+/* ------------------------------------------------------------------ */
+
+export interface AccountRecord {
+  id: string;
+  organizationId: string;
+  name: string;
+  website?: string;
+  industry?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ContactRecord {
+  id: string;
+  organizationId: string;
+  accountId?: string;
+  fullName: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
