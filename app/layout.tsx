@@ -14,9 +14,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SalesFlow — Sales Pipeline Overview",
+  title: "SalesFlow — Know where revenue stands",
   description:
-    "Interactive sales pipeline dashboard for monitoring deal health, forecasting revenue and moving opportunities forward.",
+    "Track deals, follow-ups, and revenue targets in one clear workspace. SalesFlow helps a small B2B sales team spot overdue opportunities and stay focused on the next step.",
 };
 
 export const viewport: Viewport = {

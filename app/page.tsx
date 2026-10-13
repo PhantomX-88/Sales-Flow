@@ -1,5 +1,5 @@
-import { WelcomePage } from "@/components/auth/auth-pages";
+import { LandingPage } from "@/components/marketing/landing-page";
 
 export default function Page() {
-  return <WelcomePage />;
+  return <LandingPage />;
 }

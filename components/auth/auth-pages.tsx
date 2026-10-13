@@ -60,42 +60,6 @@ function PasswordInput(props: React.ComponentProps<typeof Input>) {
   );
 }
 
-export function WelcomePage() {
-  const router = useRouter();
-  const { configurationError, isAuthenticated, isReady, organizationId, organization } = useAuth();
-
-  useEffect(() => {
-    if (isReady && isAuthenticated) {
-      router.replace(organizationId && organization?.onboardingCompleted ? "/dashboard" : "/onboarding");
-    }
-  }, [isAuthenticated, isReady, organization?.onboardingCompleted, organizationId, router]);
-
-  if (!isReady || isAuthenticated) return null;
-
-  return (
-    <AuthShell>
-      <div className="w-full max-w-md space-y-8">
-        <div>
-          <div className="mb-6 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary lg:hidden">
-            <BarChart3 className="size-5" />
-          </div>
-          <p className="mb-2 text-sm font-medium text-primary">SalesFlow organizations</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Make every opportunity count.</h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Keep your pipeline, team activity, and revenue forecast together in one clear view.
-          </p>
-        </div>
-        {configurationError ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{configurationError}</p> : null}
-        <div className="space-y-3">
-          <Button className="h-11 w-full" onClick={() => router.push("/login")}>Log in <ArrowRight /></Button>
-          <Button className="h-11 w-full" variant="outline" onClick={() => router.push("/signup")}>Create an account</Button>
-        </div>
-        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" /> Secure organization access</p>
-      </div>
-    </AuthShell>
-  );
-}
-
 export function LoginPage() {
   const router = useRouter();
   const { configurationError, isAuthenticated, isReady, signIn, organizationId, organization } = useAuth();
