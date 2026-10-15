@@ -41,6 +41,12 @@ values
   ('00000000-0000-4000-8000-00000000ad01', '00000000-0000-4000-8000-00000000ab01', '00000000-0000-4000-8000-00000000ac01', 'Phase6 Contact A')
 on conflict (id) do nothing;
 
+-- The opportunities ownership trigger requires a signed-in caller
+-- (auth.uid()); configure Owner A's claims first so the inserts below reach
+-- the composite-FK checks they are actually testing.
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-00000000aa01","role":"authenticated","email":"owner_a@phase6.test"}', false);
+
 -- Composite FKs must reject a contact linked to an account in another org.
 do $$
 begin
@@ -129,3 +135,4 @@ begin
 end $$;
 
 reset role;
+select set_config('request.jwt.claims', '', false);

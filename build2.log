@@ -1,27 +1,35 @@
 npm notice run salesflow-dashboard@1.0.0 build
 npm notice run next build
   ▲ Next.js 14.2.15
+  - Environments: .env.local
 
    Creating an optimized production build ...
- ✓ Compiled successfully
-   Linting and checking validity of types ...
-   Collecting page data ...
-   Generating static pages (0/4) ...
-   Generating static pages (1/4) 
-   Generating static pages (2/4) 
-   Generating static pages (3/4) 
- ✓ Generating static pages (4/4)
-   Finalizing page optimization ...
-   Collecting build traces ...
+Failed to compile.
 
-Route (app)                              Size     First Load JS
-┌ ○ /                                    182 kB          276 kB
-└ ○ /_not-found                          876 B          88.3 kB
-+ First Load JS shared by all            87.4 kB
-  ├ chunks/117-c9a95803f1d794ae.js       31.8 kB
-  ├ chunks/fd9d1056-fe992f465c928a17.js  53.6 kB
-  └ other shared chunks (total)          2.01 kB
+./lib/attention.ts
+Error: 
+  [31mx[0m 'import', and 'export' cannot be used outside of module code
+     ,-[[36;1;4mC:\Users\SURFACE\Test_App2\Sales-Flow\lib\attention.ts[0m:123:1]
+ [2m123[0m | }
+ [2m124[0m | 
+ [2m125[0m | /** Hide an alert for `SNOOZE_DAYS`. Safe to call from any environment. */
+ [2m126[0m | export function snoozeAttentionItem(itemId: string): void {
+     : [31;1m^^^^^^[0m
+ [2m127[0m |   const map = readSnoozes();
+ [2m128[0m |   map[itemId] = Date.now() + SNOOZE_DAYS * 86_400_000;
+ [2m128[0m |   writeSnoozes(map);
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./lib/attention.ts
+./components/dashboard/pipeline-provider.tsx
+./components/dashboard/dashboard.tsx
+./app/dashboard/page.tsx
 
 
-○  (Static)  prerendered as static content
+> Build failed because of webpack errors
 
+C:\Users\SURFACE\Test_App2\Sales-Flow>
