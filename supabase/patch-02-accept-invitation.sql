@@ -107,13 +107,23 @@ begin
       source = 'invitation',
       updated_at = now();
 
-  -- Keep a legacy target_period column in sync when present; this block
-  -- is skipped at runtime when the column does not exist.
+  -- Keep a legacy TEXT target_period column in sync when present.
+  -- A pre-existing sales_targets.target_period column that was migrated to
+  -- date (not text) must be left alone: the type guard below makes this a
+  -- harmless no-op on such databases instead of failing the whole accept.
   begin
-    update public.sales_targets
-    set target_period = v_invitation.target_period
-    where organization_id = v_invitation.organization_id
-      and user_id = caller_id;
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'sales_targets'
+        and column_name = 'target_period'
+        and data_type in ('text', 'character varying')
+    ) then
+      update public.sales_targets
+      set target_period = v_invitation.target_period
+      where organization_id = v_invitation.organization_id
+        and user_id = caller_id;
+    end if;
   exception when undefined_column then
     null;
   end;
