@@ -134,13 +134,13 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                         isActive
                           ? "bg-primary/10 font-semibold text-primary"
-                          : "font-medium text-slate-600 hover:bg-sidebar-accent hover:text-foreground",
+                           : "font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-foreground",
                       )}
                     >
                       <Icon
                         className={cn(
                           "h-4 w-4 shrink-0",
-                          isActive ? "text-primary" : "text-slate-400 group-hover:text-foreground",
+                           isActive ? "text-primary" : "text-sidebar-foreground/50 group-hover:text-foreground",
                         )}
                         aria-hidden="true"
                       />

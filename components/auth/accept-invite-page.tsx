@@ -37,12 +37,15 @@ export function AcceptInvitePage() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
 
-  const { isAuthenticated, isReady, resolveOrganization, signIn, signUp, signOut } = useAuth();
+  const { isAuthenticated, isReady, resolveOrganization, signIn, signUp, resendConfirmation, signOut } = useAuth();
 
   const [lookup, setLookup] = useState<LookupState>({ kind: "loading" });
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [mode, setMode] = useState<"signup" | "signin">("signup");
   const [confirmSent, setConfirmSent] = useState(false);
+  const [confirmResentAt, setConfirmResentAt] = useState<string | null>(null);
+  const [confirmResendError, setConfirmResendError] = useState<string | null>(null);
+  const [confirmResending, setConfirmResending] = useState(false);
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -231,7 +234,7 @@ export function AcceptInvitePage() {
     return (
       <AuthShell>
         <div className="w-full max-w-sm space-y-4 text-center">
-          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+          <span className="mx-auto flex h-11 w-11 items-center justify-center icon-soft-danger">
             <LockKeyhole className="h-5 w-5" />
           </span>
           <h1 className="text-2xl font-semibold tracking-tight">Invitation unavailable</h1>
@@ -253,10 +256,27 @@ export function AcceptInvitePage() {
         setConfirmSent(false);
       }
     };
+    const handleResendConfirmation = async () => {
+      setConfirmResendError(null);
+      setConfirmResending(true);
+      try {
+        const redirect = `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`;
+        const errorMessage = await resendConfirmation(info.email, redirect);
+        if (errorMessage) {
+          setConfirmResendError(errorMessage);
+        } else {
+          setConfirmResentAt(new Date().toLocaleTimeString());
+        }
+      } catch (error) {
+        setConfirmResendError(error instanceof Error ? error.message : "The confirmation email could not be resent.");
+      } finally {
+        setConfirmResending(false);
+      }
+    };
     return (
       <AuthShell>
         <div className="w-full max-w-sm space-y-4 text-center">
-          <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <span className="mx-auto flex h-11 w-11 items-center justify-center icon-soft-success">
             <Check className="h-5 w-5" />
           </span>
           <h1 className="text-2xl font-semibold tracking-tight">Confirm your email</h1>
@@ -265,9 +285,22 @@ export function AcceptInvitePage() {
             Open it — if it opens a different address, copy it into the browser running this site —
             and you will return to this invitation automatically.
           </p>
-          <Button variant="outline" onClick={() => void confirmedElsewhere()}>
-            I have confirmed — continue
-          </Button>
+          {confirmResentAt ? (
+            <p role="status" className="text-sm text-success">
+              Confirmation email resent at {confirmResentAt}. Check the invited inbox — and the spam folder.
+            </p>
+          ) : null}
+          {confirmResendError ? (
+            <p role="alert" className="text-sm text-destructive">{confirmResendError}</p>
+          ) : null}
+          <div className="flex flex-col gap-2">
+            <Button variant="outline" onClick={() => void handleResendConfirmation()} disabled={confirmResending}>
+              {confirmResending ? "Resending…" : "Resend confirmation email"}
+            </Button>
+            <Button variant="ghost" onClick={() => void confirmedElsewhere()}>
+              I have confirmed — continue
+            </Button>
+          </div>
         </div>
       </AuthShell>
     );

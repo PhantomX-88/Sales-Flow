@@ -44,7 +44,7 @@ function ToggleRow({
         onClick={() => onChange(!checked)}
         className={cn(
           "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2",
-          checked ? "bg-primary" : "bg-slate-300",
+          checked ? "bg-primary" : "bg-muted-foreground/40",
         )}
       >
         <span

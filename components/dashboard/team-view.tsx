@@ -73,7 +73,7 @@ const INVITATION_STATUS_STYLES: Record<InvitationRecord["status"], string> = {
   pending: "border-sky-200 bg-sky-50 text-sky-700",
   accepted: "soft-outline-success",
   revoked: "soft-outline-danger",
-  expired: "border-slate-200 bg-slate-100 text-slate-500",
+  expired: "border-border bg-muted text-muted-foreground",
 };
 
 export function TeamView() {
@@ -358,7 +358,7 @@ export function TeamView() {
                               "rounded-full border px-2 py-0.5 text-2xs font-medium",
                               member.role === "owner"
                                 ? "border-indigo-200 bg-indigo-50 text-indigo-700"
-                                : "border-slate-200 bg-slate-50 text-slate-600",
+                                : "border-border bg-muted text-muted-foreground",
                             )}
                           >
                             {roleLabel(member.role)}

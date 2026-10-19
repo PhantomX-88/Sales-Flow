@@ -21,6 +21,7 @@ interface AuthContextValue {
     error: string | null;
     needsEmailConfirmation: boolean;
   }>;
+  resendConfirmation: (email: string, emailRedirectTo?: string) => Promise<string | null>;
   sendPasswordReset: (email: string) => Promise<string | null>;
   updatePassword: (password: string) => Promise<string | null>;
   signOut: () => void;
@@ -204,6 +205,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return error?.message ?? null;
   }, []);
 
+  const resendConfirmation = React.useCallback(async (email: string, emailRedirectTo?: string) => {
+    const { error } = await getSupabaseClient().auth.resend({
+      type: "signup",
+      email,
+      options: emailRedirectTo ? { emailRedirectTo } : undefined,
+    });
+    return error?.message ?? null;
+  }, []);
+
   const updatePassword = React.useCallback(async (password: string) => {
     const { error } = await getSupabaseClient().auth.updateUser({ password });
     return error?.message ?? null;
@@ -266,6 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         saveOrganizationSetup,
         signIn,
         signUp,
+        resendConfirmation,
         sendPasswordReset,
         updatePassword,
         signOut,

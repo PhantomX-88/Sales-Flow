@@ -13,9 +13,9 @@ import { Label } from "@/components/ui/label";
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-10">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10 text-foreground">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(37,99,235,0.28),_transparent_38%),radial-gradient(circle_at_bottom_left,_rgba(14,165,233,0.16),_transparent_34%)]" />
-      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-white shadow-2xl lg:grid-cols-[0.9fr_1.1fr]">
+      <div className="relative grid w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl lg:grid-cols-[0.9fr_1.1fr]">
         <section className="hidden flex-col justify-between bg-blue-600 p-10 text-white lg:flex">
           <div>
             <div className="mb-16 flex items-center gap-2 text-lg font-semibold tracking-tight">
@@ -189,7 +189,7 @@ export function ForgotPasswordPage() {
           <p className="mt-2 text-sm text-muted-foreground">Enter the email address for your SalesFlow account and we’ll send you a secure reset link.</p>
         </div>
         {sent ? (
-          <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+          <div role="status" className="rounded-lg border border-success/30 bg-success/10 p-4 text-sm leading-6 text-success">
             If an account exists for that email, a password reset link is on its way. Check your inbox and spam folder.
           </div>
         ) : (
@@ -242,7 +242,7 @@ export function ResetPasswordPage() {
         </div>
         {saved ? (
           <div role="status" className="space-y-4">
-            <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">Your password has been updated.</p>
+            <p className="rounded-lg border border-success/30 bg-success/10 p-4 text-sm text-success">Your password has been updated.</p>
             <Button asChild className="h-11 w-full"><Link href="/login">Continue to sign in <ArrowRight /></Link></Button>
           </div>
         ) : (

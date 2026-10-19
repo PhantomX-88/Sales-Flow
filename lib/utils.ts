@@ -161,8 +161,8 @@ export function initialsOf(name: string): string {
 }
 
 export const STAGE_BADGE_STYLES: Record<PipelineStage, string> = {
-  Lead: "border-slate-200 bg-slate-50 text-slate-500",
-  Discovery: "border-slate-200 bg-slate-100 text-slate-600",
+  Lead: "border-border bg-muted text-muted-foreground",
+  Discovery: "border-border bg-muted text-muted-foreground",
   Qualified: "border-sky-200 bg-sky-50 text-sky-700",
   Proposal: "border-blue-200 bg-blue-50 text-blue-700",
   Negotiation: "border-indigo-200 bg-indigo-50 text-indigo-700",
@@ -171,8 +171,8 @@ export const STAGE_BADGE_STYLES: Record<PipelineStage, string> = {
 };
 
 export const STAGE_DOT_STYLES: Record<PipelineStage, string> = {
-  Lead: "bg-slate-300",
-  Discovery: "bg-slate-400",
+  Lead: "bg-muted-foreground/50",
+  Discovery: "bg-muted-foreground",
   Qualified: "bg-sky-500",
   Proposal: "bg-blue-600",
   Negotiation: "bg-indigo-600",

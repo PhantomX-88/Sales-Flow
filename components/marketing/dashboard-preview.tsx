@@ -12,11 +12,11 @@ import { cn, formatCurrency, formatCurrencyCompact } from "@/lib/utils";
  */
 
 const STAGE_STYLES: Record<string, string> = {
-  Discovery: "bg-sky-50 text-sky-700 border-sky-200",
-  Qualified: "bg-violet-50 text-violet-700 border-violet-200",
-  Proposal: "bg-blue-50 text-blue-700 border-blue-200",
-  Negotiation: "bg-amber-50 text-amber-700 border-amber-200",
-  "Closed Won": "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Discovery: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800",
+  Qualified: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800",
+  Proposal: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
+  Negotiation: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+  "Closed Won": "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
 };
 
 function StageTag({ stage }: { stage: string }) {
@@ -53,7 +53,7 @@ export function PipelinePreview() {
       </div>
 
       <div className="space-y-4 p-4">
-        <dl className="grid grid-cols-3 gap-3">
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Card className="p-3">
             <dt className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">Open pipeline</dt>
             <dd className="mt-1 text-[15px] font-bold tabular sm:text-lg">{formatCurrencyCompact(30_100_000, "NGN")}</dd>
@@ -92,7 +92,7 @@ export function PipelinePreview() {
                   <td className="py-2.5 pr-3"><StageTag stage={deal.stage} /></td>
                   <td className="py-2.5 pr-3 text-right font-medium tabular">{formatCurrency(deal.value, "NGN")}</td>
                   <td className="hidden py-2.5 pr-3 text-muted-foreground sm:table-cell">{deal.owner}</td>
-                  <td className={cn("py-2.5", deal.overdue ? "font-medium text-rose-600" : "text-muted-foreground")}>
+                  <td className={cn("py-2.5", deal.overdue ? "font-medium text-danger" : "text-muted-foreground")}>
                     {deal.next}
                   </td>
                 </tr>
@@ -123,8 +123,8 @@ export function FollowUpPreview() {
 
       <div className="grid gap-4 p-4 md:grid-cols-2">
         <ol className="space-y-3">
-          <li className="rounded-lg border border-rose-200 bg-rose-50 p-3">
-            <p className="text-2xs font-semibold uppercase tracking-wide text-rose-600">Overdue · 3 days</p>
+          <li className="soft-outline-danger rounded-lg p-3">
+            <p className="text-2xs font-semibold uppercase tracking-wide text-danger">Overdue · 3 days</p>
             <p className="mt-0.5 text-[13px] font-medium">Call back — Abuja Print Hub</p>
             <p className="text-2xs text-muted-foreground">Next step logged after discovery call</p>
           </li>

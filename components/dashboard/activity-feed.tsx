@@ -29,7 +29,7 @@ export const ACTIVITY_STYLES: Record<ActivityType, { icon: LucideIcon; className
   overdue: { icon: TriangleAlert, className: "icon-soft-warning" },
   won: { icon: Trophy, className: "icon-soft-success" },
   lost: { icon: CircleX, className: "icon-soft-danger" },
-  note: { icon: NotebookPen, className: "bg-slate-100 text-slate-600" },
+  note: { icon: NotebookPen, className: "bg-muted text-muted-foreground" },
   call: { icon: Phone, className: "bg-violet-50 text-violet-600" },
   email: { icon: Mail, className: "bg-cyan-50 text-cyan-600" },
   meeting: { icon: Users, className: "bg-teal-50 text-teal-600" },
