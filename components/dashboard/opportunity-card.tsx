@@ -137,8 +137,8 @@ export function KanbanCard({
                 : opportunity.probability >= 60
                   ? "fill-primary"
                   : opportunity.probability >= 30
-                    ? "bg-sky-400"
-                    : "bg-slate-300",
+                    ? "bg-sky-400 dark:bg-sky-300"
+                    : "bg-muted-foreground/50",
             )}
             style={{ width: `${opportunity.probability}%` }}
           />
