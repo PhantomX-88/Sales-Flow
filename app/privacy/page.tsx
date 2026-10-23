@@ -24,7 +24,7 @@ export default function PrivacyPage() {
     >
       <Section title="Who is responsible">
         <p>
-          SalesFlow is operated by <strong className="text-foreground">[insert legal entity name and business address]</strong> ("SalesFlow," "we," "us"). Add the operator’s verified identity and privacy contact before treating this draft as final.
+          SalesFlow is operated by <strong className="text-foreground">[insert legal entity name and business address]</strong>. References to SalesFlow, we, or us mean this operator.
         </p>
         <p>
           For account and service administration, the operator determines how account information is used. For customer, prospect, opportunity, and activity details entered by a workspace, that workspace’s organization generally decides why the information is used; SalesFlow processes it to provide the workspace service.

@@ -24,7 +24,7 @@ export default function TermsPage() {
     >
       <Section title="Agreement and provider">
         <p>
-          These terms are between you and <strong className="text-foreground">[insert legal entity name and business address]</strong>, the operator of SalesFlow ("SalesFlow," "we," "us"). By creating an account or using the service, you agree to these terms. If you use SalesFlow for an organization, you confirm that you are authorized to accept these terms for it.
+          These terms are between you and <strong className="text-foreground">[insert legal entity name and business address]</strong>, the operator of SalesFlow. References to SalesFlow, we, or us mean this operator. By creating an account or using the service, you agree to these terms. If you use SalesFlow for an organization, you confirm that you are authorized to accept these terms for it.
         </p>
       </Section>
 
