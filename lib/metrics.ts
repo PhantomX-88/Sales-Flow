@@ -108,6 +108,7 @@ export function computeMetrics(opportunities: Opportunity[], today: string): Pip
     averageDealSize: won.length ? sumValues(won) / won.length : 0,
     averageSalesCycle,
     wonValue: sumValues(won),
+    collectedRevenue: won.reduce((total, opportunity) => total + (opportunity.amountPaid ?? 0), 0),
     lostValue: sumValues(lost),
     wonCount: won.length,
     lostCount: lost.length,
@@ -407,6 +408,14 @@ export function computeKpis(
           }
         : null,
       footnote: `Avg sales cycle ${Math.round(metrics.averageSalesCycle)} days`,
+    },
+    {
+      id: "collected-revenue",
+      label: "Cash received",
+      value: formatCurrencyCompact(metrics.collectedRevenue, currency),
+      supporting: `${formatCurrencyCompact(metrics.wonValue, currency)} total Closed Won value`,
+      trend: null,
+      footnote: `${formatCurrencyCompact(Math.max(metrics.wonValue - metrics.collectedRevenue, 0), currency)} outstanding or not recorded`,
     },
   ];
 }

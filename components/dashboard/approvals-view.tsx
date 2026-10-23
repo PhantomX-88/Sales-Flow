@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
+import { InvoiceApprovals } from "@/components/dashboard/invoice-approvals";
 
 function daysLeft(deletedAt: string): number {
   return Math.max(30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86_400_000), 0);
@@ -73,6 +74,8 @@ export function ApprovalsView() {
           instantly (restorable for 30 days); rejecting returns it to the rep with your comment.
         </p>
       </div>
+
+      <InvoiceApprovals />
 
       <Card className="overflow-hidden">
         <div className="flex items-center border-b border-border px-5 py-4">

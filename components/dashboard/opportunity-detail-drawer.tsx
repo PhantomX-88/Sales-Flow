@@ -42,6 +42,7 @@ import {
 import { getSupabaseClient } from "@/lib/supabase";
 import { Textarea } from "@/components/ui/textarea";
 import { STAGE_ORDER } from "@/lib/pipeline-config";
+import { DealLifecyclePanel } from "@/components/dashboard/deal-lifecycle-panel";
 import type { ActivityType, PipelineStage } from "@/lib/types";
 import {
   cn,
@@ -203,6 +204,7 @@ export function OpportunityDetailDrawer() {
               </SheetHeader>
 
               <div className="flex-1 space-y-6 overflow-y-auto p-5">
+                <DealLifecyclePanel opportunity={opportunity} />
                 <section aria-labelledby="opportunity-details">
                   <h3 id="opportunity-details" className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Opportunity details

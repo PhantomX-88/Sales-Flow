@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
@@ -56,17 +56,6 @@ export function FilterToggleButton() {
   );
 }
 
-export function NewOpportunityButton({ className }: { className?: string }) {
-  const { openCreateDialog } = usePipeline();
-
-  return (
-    <Button size="sm" className={cn("h-9", className)} onClick={openCreateDialog}>
-      <Plus className="h-4 w-4" />
-      New opportunity
-    </Button>
-  );
-}
-
 interface PageHeaderProps {
   title: string;
   description: string;
@@ -94,7 +83,6 @@ export function PageHeader({
       <div className="flex flex-wrap items-center gap-2">
         {showPeriod ? <PeriodTabs className="order-last w-full sm:order-none sm:w-auto" /> : null}
         {showFilter ? <FilterToggleButton /> : null}
-        <NewOpportunityButton />
         {children}
       </div>
     </header>

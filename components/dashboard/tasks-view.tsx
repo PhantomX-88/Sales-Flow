@@ -38,12 +38,19 @@ export function TasksView() {
     [opportunities],
   );
 
-  const openTaskDialog = () => {
+  const openTaskDialog = React.useCallback(() => {
+    if (!openOpportunities.length) return;
     setOpportunityId(openOpportunities[0]?.id ?? "");
     setTitle("");
     setDueDate("");
     setDialogOpen(true);
-  };
+  }, [openOpportunities]);
+
+  React.useEffect(() => {
+    const openFollowUp = () => openTaskDialog();
+    window.addEventListener("salesflow:open-followup", openFollowUp);
+    return () => window.removeEventListener("salesflow:open-followup", openFollowUp);
+  }, [openTaskDialog]);
 
   const handleCreateFollowUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -75,12 +82,7 @@ export function TasksView() {
       <PageHeader
         title="Tasks"
         description="Keep follow-ups tied to your opportunities. Scheduled tasks stay here until completed, alongside reminders from your pipeline."
-      >
-        <Button size="sm" className="h-9" onClick={openTaskDialog} disabled={isLoading || openOpportunities.length === 0}>
-          <CalendarPlus className="h-4 w-4" />
-          New follow-up
-        </Button>
-      </PageHeader>
+      />
 
       <Card className="p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

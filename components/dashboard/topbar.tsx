@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  CalendarPlus,
   Download,
   LogOut,
   Menu,
@@ -171,11 +172,18 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
             <TooltipContent>Export filtered opportunities (CSV)</TooltipContent>
           </Tooltip>
 
-          <Button onClick={openCreateDialog} size="sm" className="h-9">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New opportunity</span>
-            <span className="sm:hidden">New</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="h-9"><Plus className="h-4 w-4" />Create</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={openCreateDialog}><Plus /> New opportunity</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => {
+                setView("tasks");
+                window.setTimeout(() => window.dispatchEvent(new Event("salesflow:open-followup")), 0);
+              }}><CalendarPlus /> New follow-up</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

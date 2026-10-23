@@ -6,6 +6,7 @@ import { AccountsView } from "@/components/dashboard/accounts-view";
 import { ActivitiesView } from "@/components/dashboard/activities-view";
 import { ApprovalsView } from "@/components/dashboard/approvals-view";
 import { ForecastView } from "@/components/dashboard/forecast-view";
+import { ChurnView } from "@/components/dashboard/churn-view";
 import { ImportDialog } from "@/components/dashboard/import-dialog";
 import { OpportunityDetailDrawer } from "@/components/dashboard/opportunity-detail-drawer";
 import { OpportunityFormDialog } from "@/components/dashboard/opportunity-form-dialog";
@@ -38,6 +39,8 @@ function ViewRouter() {
       return <TeamView />;
     case "approvals":
       return <ApprovalsView />;
+    case "churn":
+      return <ChurnView />;
     case "settings":
       return <SettingsView />;
     case "overview":

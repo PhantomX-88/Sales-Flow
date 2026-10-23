@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 require("./register-typescript.cjs");
 
 const { buildAttentionQueue } = require("../lib/attention.ts");
-const { computeForecast, computeReminders, forecastPeriodWindow } = require("../lib/metrics.ts");
+const { computeForecast, computeMetrics, computeReminders, forecastPeriodWindow, isOpen } = require("../lib/metrics.ts");
 const {
   autoMapColumns,
   buildErrorCsv,
@@ -30,6 +30,17 @@ function opportunity(overrides = {}) {
     ...overrides,
   };
 }
+
+test("Invoiced remains open and closed-won cash metrics use recorded receipts", () => {
+  const invoiced = opportunity({ stage: "Invoiced", value: 500, probability: 80 });
+  const won = opportunity({ id: "won", stage: "Closed Won", value: 900, amountPaid: 350 });
+  const metrics = computeMetrics([invoiced, won], "2026-06-15");
+
+  assert.equal(isOpen(invoiced), true);
+  assert.equal(metrics.pipelineValue, 500);
+  assert.equal(metrics.wonValue, 900);
+  assert.equal(metrics.collectedRevenue, 350);
+});
 
 test("forecast windows include exact UTC date boundaries", () => {
   assert.deepEqual(forecastPeriodWindow("quarterly", "2026-06-30"), {

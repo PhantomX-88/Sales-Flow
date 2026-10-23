@@ -271,6 +271,10 @@ function draftToOpportunity(
       !isClosedStage && probability !== defaultProbabilityFor(draft.stage),
     accountId: draft.accountId,
     contactId: draft.contactId,
+    amountPaid: existing?.amountPaid,
+    paymentFrequency: existing?.paymentFrequency,
+    installmentAmount: existing?.installmentAmount,
+    nextPaymentDate: existing?.nextPaymentDate,
   };
 }
 
@@ -301,6 +305,10 @@ function toOpportunityRow(
       ? {
           account_id: opportunity.accountId ?? null,
           contact_id: opportunity.contactId ?? null,
+          amount_paid: opportunity.amountPaid ?? null,
+          payment_frequency: opportunity.paymentFrequency ?? null,
+          installment_amount: opportunity.installmentAmount ?? null,
+          next_payment_date: opportunity.nextPaymentDate ?? null,
         }
       : {}),
   };
@@ -332,6 +340,10 @@ function fromOpportunityRow(row: Record<string, unknown>): Opportunity {
     probabilityOverridden: Boolean(row.probability_overridden),
     accountId: row.account_id ? String(row.account_id) : undefined,
     contactId: row.contact_id ? String(row.contact_id) : undefined,
+    amountPaid: row.amount_paid === null || row.amount_paid === undefined ? undefined : Number(row.amount_paid),
+    paymentFrequency: row.payment_frequency ? String(row.payment_frequency) as Opportunity["paymentFrequency"] : undefined,
+    installmentAmount: row.installment_amount === null || row.installment_amount === undefined ? undefined : Number(row.installment_amount),
+    nextPaymentDate: row.next_payment_date ? String(row.next_payment_date) : undefined,
   };
 }
 
@@ -1031,6 +1043,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         current.map((opportunity) => (opportunity.id === id ? updated : opportunity)),
       );
       setEditingId(null);
+      if (updated.stage === "Invoiced" || updated.stage === "Closed Won") setSelectedId(id);
 
       if (stageChanged) {
         void pushActivity({
@@ -1091,6 +1104,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
             : opportunity,
         ),
       );
+      if (stage === "Invoiced" || stage === "Closed Won") setSelectedId(id);
 
       void pushActivity({
         type: stage === "Closed Won" ? "won" : stage === "Closed Lost" ? "lost" : "stage_change",
@@ -1141,6 +1155,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
             : opportunity,
         ),
       );
+      if (stage === "Closed Won") setSelectedId(id);
 
       void pushActivity({
         type: stage === "Closed Won" ? "won" : "lost",

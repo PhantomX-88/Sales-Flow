@@ -9,6 +9,7 @@ export type PipelineStage =
   | "Discovery"
   | "Qualified"
   | "Proposal"
+  | "Invoiced"
   | "Negotiation"
   | "Closed Won"
   | "Closed Lost";
@@ -53,6 +54,10 @@ export interface Opportunity {
   accountId?: string;
   /** Optional link to a shared contact record (legacy `contact` text is kept). */
   contactId?: string;
+  amountPaid?: number;
+  paymentFrequency?: "monthly" | "quarterly" | "triannual" | "biannual";
+  installmentAmount?: number;
+  nextPaymentDate?: string;
 }
 
 export interface DeletionRequest {
@@ -273,6 +278,7 @@ export interface PipelineMetrics {
   averageDealSize: number;
   averageSalesCycle: number;
   wonValue: number;
+  collectedRevenue: number;
   lostValue: number;
   wonCount: number;
   lostCount: number;
@@ -289,6 +295,7 @@ export type DashboardView =
   | "tasks"
   | "team"
   | "approvals"
+  | "churn"
   | "settings";
 
 export interface OpportunityDraft {
@@ -307,6 +314,33 @@ export interface OpportunityDraft {
   accountId?: string;
   /** Selected existing contact record (resolved from the contact text). */
   contactId?: string;
+}
+
+export type InvoiceStatus = "pending_approval" | "approved" | "rejected" | "sent";
+
+export interface InvoiceRecord {
+  id: string;
+  opportunityId: string;
+  company: string;
+  invoiceNumber: string;
+  description: string;
+  amount: number;
+  dueDate: string;
+  notes?: string;
+  status: InvoiceStatus;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface ChurnRecord {
+  id: string;
+  opportunityId: string;
+  company: string;
+  churnedAt: string;
+  outstandingAmount: number;
+  reason: string;
+  notes?: string;
+  recordedBy: string;
 }
 
 export interface AccountSummary {

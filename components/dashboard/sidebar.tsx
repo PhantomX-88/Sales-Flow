@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Activity,
   Building2,
+  TrendingDown,
   ChevronUp,
   Download,
   LogOut,
@@ -59,6 +60,7 @@ function useNavSections(): { label: string; items: NavItem[] }[] {
         { key: "accounts", label: "Accounts", icon: Building2 },
         { key: "activities", label: "Activities", icon: Activity },
         { key: "forecast", label: "Forecast", icon: TrendingUp },
+        ...(isOwner ? [{ key: "churn" as const, label: "Churn", icon: TrendingDown }] : []),
       ],
     },
     {

@@ -285,6 +285,14 @@ Implemented in the application:
 
 Database prerequisite: apply `supabase/patch-03-accounts-contacts.sql` after `supabase/schema.sql` to add the accounts/contacts tables, organization-safe relationships, and legacy-data backfill. The patch is additive and is not applied automatically. Run the SQL regression checks in `supabase/tests/phase6-tests.sql` after applying it.
 
+## Invoice, payment, and churn workflows
+
+The pipeline includes an `Invoiced` stage immediately after Proposal. Moving a deal into Invoiced opens its invoice form. Sales reps submit invoices for owner approval; owners can create invoices that are approved immediately. Once approved, the creator can open an email draft or WhatsApp message for the client. Closed Won deals track total deal value, recorded payments, balance, installment cadence, installment amount, and next due date. The owner-only Churn view summarizes departures and outstanding balances; reps and owners can record churn from opportunity details.
+
+Database prerequisite: after `supabase/schema.sql` and `supabase/patch-03-accounts-contacts.sql`, apply `supabase/patch-04-invoices-payments-churn.sql` in the Supabase SQL Editor. This adds the Invoiced stage constraint, payment columns, invoice and churn tables, organization/owner scoped RLS, and the restricted invoice-delivery RPC. The application cannot save invoice, payment, or churn records until this patch is applied to the hosted database. Existing Closed Won rows remain without an assumed amount-paid value so their historic cash receipts are not fabricated; record payments in the deal details to populate the cash-received dashboard metric.
+
+The global Create menu in the dashboard top bar is the single entry point for new opportunities and follow-ups.
+
 The reporting-period tabs on revenue charts select the chart's date range; the forecast target window always comes from the configured target period. Pipeline date filters and CSV export follow the filters currently shown in the pipeline.
 
 ---
