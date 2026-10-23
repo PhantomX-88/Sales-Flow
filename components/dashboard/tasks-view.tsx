@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckCircle2, Circle, CircleAlert, Clock } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Circle, CircleAlert, Clock } from "lucide-react";
 
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -9,6 +9,10 @@ import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TaskItem } from "@/lib/types";
 import { cn, pluralize } from "@/lib/utils";
 
@@ -22,32 +26,70 @@ const TONE_META: Record<
 };
 
 export function TasksView() {
-  const { tasks, openOpportunity } = usePipeline();
+  const { tasks, openOpportunity, opportunities, createFollowUp, completeFollowUp, isLoading } = usePipeline();
   const [completed, setCompleted] = React.useState<string[]>([]);
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [title, setTitle] = React.useState("");
+  const [dueDate, setDueDate] = React.useState("");
+  const [opportunityId, setOpportunityId] = React.useState("");
+  const [isSaving, setIsSaving] = React.useState(false);
+  const openOpportunities = React.useMemo(
+    () => opportunities.filter((opportunity) => opportunity.stage !== "Closed Won" && opportunity.stage !== "Closed Lost"),
+    [opportunities],
+  );
 
-  const toggle = (id: string) =>
-    setCompleted((current) =>
-      current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id],
-    );
+  const openTaskDialog = () => {
+    setOpportunityId(openOpportunities[0]?.id ?? "");
+    setTitle("");
+    setDueDate("");
+    setDialogOpen(true);
+  };
+
+  const handleCreateFollowUp = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!opportunityId || !title.trim() || !dueDate) return;
+    setIsSaving(true);
+    const saved = await createFollowUp(opportunityId, title, dueDate);
+    setIsSaving(false);
+    if (saved) setDialogOpen(false);
+  };
+
+  const toggle = async (id: string) => {
+    if (completed.includes(id)) {
+      setCompleted((current) => current.filter((entry) => entry !== id));
+      return;
+    }
+    if (id.startsWith("reminder-")) {
+      const saved = await completeFollowUp(id.slice("reminder-".length));
+      if (!saved) return;
+    }
+    setCompleted((current) => [...current, id]);
+  };
 
   const remaining = tasks.filter((task) => !completed.includes(task.id));
-  const progress = tasks.length ? ((tasks.length - remaining.length) / tasks.length) * 100 : 0;
+  const trackedTaskCount = tasks.length + completed.length;
+  const progress = trackedTaskCount ? ((trackedTaskCount - remaining.length) / trackedTaskCount) * 100 : 0;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Tasks"
-        description="Follow-ups generated from your pipeline: overdue close dates, deals closing this week and overdue next-step reminders. Every task shows the date it came from."
-      />
+        description="Keep follow-ups tied to your opportunities. Scheduled tasks stay here until completed, alongside reminders from your pipeline."
+      >
+        <Button size="sm" className="h-9" onClick={openTaskDialog} disabled={isLoading || openOpportunities.length === 0}>
+          <CalendarPlus className="h-4 w-4" />
+          New follow-up
+        </Button>
+      </PageHeader>
 
       <Card className="p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[13px] font-semibold">
-              {remaining.length} of {tasks.length} {pluralize(tasks.length, "task")} remaining
+              {remaining.length} of {trackedTaskCount} {pluralize(trackedTaskCount, "task")} remaining
             </p>
             <p className="mt-0.5 text-2xs text-muted-foreground">
-              Tasks are derived live from expected close dates and follow-up due dates.
+              Scheduled follow-ups are saved to the activity history and remain open until completed.
             </p>
           </div>
           {completed.length ? (
@@ -134,6 +176,61 @@ export function TasksView() {
           })}
         </div>
       )}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Schedule a follow-up</DialogTitle>
+            <DialogDescription>Choose an open opportunity, describe the next step, and set its due date.</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleCreateFollowUp}>
+            <div className="space-y-2">
+              <Label htmlFor="follow-up-opportunity">Opportunity</Label>
+              <Select value={opportunityId} onValueChange={setOpportunityId} required>
+                <SelectTrigger id="follow-up-opportunity">
+                  <SelectValue placeholder="Choose an opportunity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {openOpportunities.map((opportunity) => (
+                    <SelectItem key={opportunity.id} value={opportunity.id}>
+                      {opportunity.company}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="follow-up-title">Next step</Label>
+              <Input
+                id="follow-up-title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                maxLength={240}
+                placeholder="Send the revised proposal"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="follow-up-due-date">Due date</Label>
+              <Input
+                id="follow-up-due-date"
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving || !opportunityId || !title.trim() || !dueDate}>
+                {isSaving ? "Saving…" : "Schedule follow-up"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

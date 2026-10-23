@@ -262,12 +262,11 @@ export function LandingPage() {
             <a href="#faq" className="hover:text-foreground">FAQ</a>
             <Link href="/login" className="hover:text-foreground">Log in</Link>
             <Link href="/signup" className="font-medium text-primary hover:underline">Create an account</Link>
+            <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+            <Link href="/terms" className="hover:text-foreground">Terms</Link>
           </nav>
         </div>
         <div className="mx-auto max-w-5xl border-t border-border px-4 py-4 sm:px-6">
-          {/* TODO(product owner): add Privacy (/privacy) and Terms (/terms) pages,
-              plus a contact email, then render the links here. No policy text
-              exists yet, so no links are shown on purpose. */}
           <p className="text-2xs text-muted-foreground">© 2026 SalesFlow.</p>
         </div>
       </footer>

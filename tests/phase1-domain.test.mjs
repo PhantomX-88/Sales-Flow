@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 require("./register-typescript.cjs");
 
 const { buildAttentionQueue } = require("../lib/attention.ts");
-const { computeForecast, forecastPeriodWindow } = require("../lib/metrics.ts");
+const { computeForecast, computeReminders, forecastPeriodWindow } = require("../lib/metrics.ts");
 const {
   autoMapColumns,
   buildErrorCsv,
@@ -78,6 +78,20 @@ test("empty periods produce zero forecast values", () => {
   assert.equal(forecast.weightedForecast, 0);
   assert.equal(forecast.closedRevenue, 0);
   assert.equal(forecast.projectedCoveragePercent, 0);
+});
+
+test("scheduled follow-ups remain visible until completed, including dates beyond one week", () => {
+  const activities = [
+    { id: "future", opportunityId: "deal-1", nextStep: "Send revised proposal", dueDate: "2026-07-15", text: "Follow-up scheduled" },
+    { id: "today", opportunityId: "deal-1", nextStep: "Call the buyer", dueDate: "2026-06-30", text: "Follow-up scheduled" },
+    { id: "completed", opportunityId: "deal-1", text: "Proposal sent" },
+  ];
+  const tasks = computeReminders(activities, "2026-06-30");
+
+  assert.equal(tasks.length, 2);
+  assert.equal(tasks.find((task) => task.id === "reminder-future").tone, "info");
+  assert.equal(tasks.find((task) => task.id === "reminder-future").dueLabel, "Due in 15 days");
+  assert.equal(tasks.find((task) => task.id === "reminder-today").dueLabel, "Due today");
 });
 
 test("attention queue distinguishes no activity, stale activity, and completed next steps", () => {

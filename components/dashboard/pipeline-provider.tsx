@@ -191,6 +191,8 @@ interface PipelineContextValue {
     text: string,
     meta?: { nextStep?: string; dueDate?: string },
   ) => void;
+  createFollowUp: (opportunityId: string, title: string, dueDate: string) => Promise<boolean>;
+  completeFollowUp: (activityId: string) => Promise<boolean>;
   exportCsv: (rows?: Opportunity[], filename?: string) => void;
 
   /* Phase 1 — attention queue */
@@ -1423,6 +1425,79 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     [opportunities, pushActivity, organizationId],
   );
 
+  const createFollowUp = React.useCallback(
+    async (opportunityId: string, title: string, dueDate: string): Promise<boolean> => {
+      const normalizedTitle = title.trim();
+      if (!organizationId || !normalizedTitle || !dueDate) return false;
+
+      const opportunity = opportunities.find((item) => item.id === opportunityId);
+      if (!opportunity || opportunity.stage === "Closed Won" || opportunity.stage === "Closed Lost") {
+        toast({ title: "Choose an open opportunity.", variant: "destructive" });
+        return false;
+      }
+
+      const saved = await pushActivity({
+        type: "follow-up",
+        text: `Follow-up scheduled: ${normalizedTitle}`,
+        opportunityId,
+        nextStep: normalizedTitle,
+        dueDate,
+      });
+      if (!saved) return false;
+
+      const { error } = await getSupabaseClient()
+        .from("opportunities")
+        .update({ last_activity: "Just now" })
+        .eq("id", opportunityId)
+        .eq("organization_id", organizationId);
+      if (!error) {
+        setOpportunities((current) =>
+          current.map((item) => item.id === opportunityId ? { ...item, lastActivity: "Just now" } : item),
+        );
+      }
+
+      toast({
+        title: "Follow-up scheduled.",
+        description: `${normalizedTitle} · ${opportunity.company}`,
+        variant: "success",
+      });
+      return true;
+    },
+    [opportunities, organizationId, pushActivity],
+  );
+
+  const completeFollowUp = React.useCallback(
+    async (activityId: string): Promise<boolean> => {
+      if (!organizationId) return false;
+
+      const { data, error } = await getSupabaseClient()
+        .from("activities")
+        .update({ next_step: null, due_date: null })
+        .eq("id", activityId)
+        .eq("organization_id", organizationId)
+        .not("next_step", "is", null)
+        .select("id")
+        .maybeSingle();
+      if (error || !data) {
+        toast({
+          title: "Follow-up could not be completed.",
+          description: error?.message ?? "Refresh the page and try again.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      setActivities((current) =>
+        current.map((activity) => activity.id === activityId
+          ? { ...activity, nextStep: undefined, dueDate: undefined }
+          : activity),
+      );
+      toast({ title: "Follow-up completed.", variant: "success" });
+      return true;
+    },
+    [organizationId],
+  );
+
   const exportCsv = React.useCallback(
     (rows?: Opportunity[], filename?: string) => {
       const source = rows ?? sorted;
@@ -1765,6 +1840,8 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     pendingDeletionCount,
     reassignOpportunity,
     addActivity,
+    createFollowUp,
+    completeFollowUp,
     exportCsv,
 
     openActivityLog,

@@ -499,8 +499,8 @@ export function computeTasks(
 
 /**
  * Reminders derived from activities that carry a next step + due date.
- * Overdue and due-within-7-days steps become task items so they surface
- * in the Tasks view alongside pipeline-derived tasks (Phase 3).
+ * Scheduled follow-ups become task items so they surface in the Tasks view
+ * until they are completed, including steps that are more than a week away.
  */
 export function computeReminders(activities: Activity[], today: string): TaskItem[] {
   const reminders: TaskItem[] = [];
@@ -518,14 +518,14 @@ export function computeReminders(activities: Activity[], today: string): TaskIte
         tone: "danger",
         opportunityId: activity.opportunityId,
       });
-    } else if (daysUntil <= 7) {
+    } else {
       reminders.push({
         id: `reminder-${activity.id}`,
         title: activity.nextStep,
         detail: activity.text,
         dueLabel:
           daysUntil === 0 ? "Due today" : `Due in ${daysUntil} ${pluralize(daysUntil, "day")}`,
-        tone: "warning",
+        tone: daysUntil <= 7 ? "warning" : "info",
         opportunityId: activity.opportunityId,
       });
     }
