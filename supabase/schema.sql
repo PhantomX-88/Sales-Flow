@@ -32,7 +32,7 @@ create table if not exists public.opportunities (
   contact text not null default 'Unassigned',
   email text,
   phone text,
-  stage text not null check (stage in ('Lead', 'Discovery', 'Qualified', 'Proposal', 'Invoiced', 'Negotiation', 'Closed Won', 'Closed Lost')),
+  stage text not null check (stage in ('Lead', 'Discovery', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost')),
   value numeric not null default 0 check (value >= 0),
   probability integer not null default 0 check (probability between 0 and 100),
   owner text not null,
@@ -44,10 +44,6 @@ create table if not exists public.opportunities (
   notes text,
   closed_date date,
   probability_overridden boolean not null default false,
-  /* Payment tracking for Closed Won deals */
-  amount_paid numeric not null default 0 check (amount_paid >= 0),
-  installment_frequency text not null default 'none' check (installment_frequency in ('none', 'monthly', 'quarterly', 'triannual', 'biannual')),
-  next_payment_date date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -61,67 +57,9 @@ create table if not exists public.activities (
   created_at timestamptz not null default now()
 );
 
--- Invoices table — tracks invoice drafts, approvals, and delivery.
-create table if not exists public.invoices (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid references public.organizations(id) on delete cascade,
-  opportunity_id uuid references public.opportunities(id) on delete cascade,
-  invoice_number text not null,
-  client_name text not null,
-  client_email text,
-  client_phone text,
-  amount numeric not null default 0 check (amount >= 0),
-  status text not null default 'draft' check (status in ('draft', 'pending_approval', 'approved', 'sent', 'paid')),
-  due_date date,
-  line_items jsonb not null default '[]'::jsonb,
-  notes text,
-  created_by uuid references auth.users(id) on delete set null,
-  created_by_name text,
-  approved_by uuid references auth.users(id) on delete set null,
-  approved_by_name text,
-  approved_at timestamptz,
-  sent_at timestamptz,
-  sent_method text check (sent_method in ('email', 'whatsapp')),
-  sent_url text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists invoices_opportunity_id_idx on public.invoices(opportunity_id);
-create index if not exists invoices_organization_id_idx on public.invoices(organization_id);
-create index if not exists invoices_status_idx on public.invoices(status);
-
--- Churn records — tracks when a client leaves a deal.
-create table if not exists public.churn_records (
-  id uuid primary key default gen_random_uuid(),
-  organization_id uuid references public.organizations(id) on delete cascade,
-  opportunity_id uuid references public.opportunities(id) on delete cascade,
-  churned_at timestamptz not null default now(),
-  reason text not null,
-  outstanding_amount numeric not null default 0 check (outstanding_amount >= 0),
-  notes text,
-  created_by uuid references auth.users(id) on delete set null,
-  created_by_name text,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists churn_records_opportunity_id_idx on public.churn_records(opportunity_id);
-create index if not exists churn_records_organization_id_idx on public.churn_records(organization_id);
-
 -- Upgrade tables created by earlier versions that did not include workspace isolation.
 alter table public.opportunities
   add column if not exists workspace_id uuid references public.workspaces(id) on delete cascade;
-
-alter table public.opportunities
-  add column if not exists amount_paid numeric not null default 0 check (amount_paid >= 0);
-alter table public.opportunities
-  add column if not exists installment_frequency text not null default 'none' check (installment_frequency in ('none', 'monthly', 'quarterly', 'triannual', 'biannual'));
-alter table public.opportunities
-  add column if not exists next_payment_date date;
-alter table public.opportunities
-  add column if not exists invoice_count integer not null default 0;
-alter table public.opportunities
-  add column if not exists total_billed numeric not null default 0 check (total_billed >= 0);
 
 alter table public.opportunities
   add column if not exists id uuid default gen_random_uuid(),

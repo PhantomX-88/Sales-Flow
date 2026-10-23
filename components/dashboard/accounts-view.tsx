@@ -11,7 +11,6 @@ import { StageBadge } from "@/components/dashboard/stage-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CentralCTA } from "@/components/dashboard/central-cta";
 import {
   Dialog,
   DialogContent,

@@ -1,19 +1,19 @@
 // Phase 2 API tests — zero dependencies (node:test + global fetch).
 //
 // Prereqs:
-//   1. `npm run dev:qa` running locally with Supabase env configured (port 3010).
+//   1. `npm run dev` running locally with Supabase env configured.
 //   2. Export credentials of an ACTIVE OWNER account:
 //        TEST_OWNER_TOKEN  — Supabase access token (browser devtools →
 //                            localStorage → supabase.auth.token → access_token)
 //        TEST_ORG_ID       — that owner's organization id
-//        SALESFLOW_BASE_URL — optional, default http://localhost:3010
+//        SALESFLOW_BASE_URL — optional, default http://localhost:3000
 //
-// Run:  npm run test:invite
+// Run:  node --test tests/invite-api.test.mjs
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const BASE = process.env.SALESFLOW_BASE_URL ?? "http://localhost:3010";
+const BASE = process.env.SALESFLOW_BASE_URL ?? "http://localhost:3000";
 const OWNER_TOKEN = process.env.TEST_OWNER_TOKEN;
 const ORG_ID = process.env.TEST_ORG_ID;
 const MISSING_CREDS = "set TEST_OWNER_TOKEN and TEST_ORG_ID to run";

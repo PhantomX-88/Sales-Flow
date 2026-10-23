@@ -159,7 +159,7 @@ export function SettingsView() {
 
           <dl className="mt-4 space-y-2.5 rounded-lg border border-border bg-muted/30 p-3.5">
             {[
-              { label: "Dataset", value: organizationName },
+              { label: "Dataset", value: metadata.dataset },
               { label: "Currency", value: metadata.currency },
               { label: "Period", value: metadata.period },
               { label: "Last updated", value: new Date(metadata.lastUpdated).toUTCString() },
@@ -192,7 +192,18 @@ export function SettingsView() {
             </p>
           </div>
 
-          
+          <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-border bg-card p-3.5">
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+              aria-hidden="true"
+            >
+              <MonitorPlay className="h-4 w-4" />
+            </span>
+            <p className="text-2xs leading-relaxed text-muted-foreground">
+              Dark mode is not enabled in v1, but every surface reads CSS custom properties, so a
+              theme can be added without touching components.
+            </p>
+          </div>
         </Card>
       </div>
 

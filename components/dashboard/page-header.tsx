@@ -56,13 +56,15 @@ export function FilterToggleButton() {
   );
 }
 
-/* ────────────────────────────────────────────────────────────────────── */
-/* NewOpportunityButton — kept for backward compatibility;             */
-/* use CentralCTA instead in new code.                                   */
-/* ────────────────────────────────────────────────────────────────────── */
-
 export function NewOpportunityButton({ className }: { className?: string }) {
-  return <CentralCTA className={className} />;
+  const { openCreateDialog } = usePipeline();
+
+  return (
+    <Button size="sm" className={cn("h-9", className)} onClick={openCreateDialog}>
+      <Plus className="h-4 w-4" />
+      New opportunity
+    </Button>
+  );
 }
 
 interface PageHeaderProps {

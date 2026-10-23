@@ -9,7 +9,6 @@ import { OpportunityActions } from "@/components/dashboard/opportunity-actions";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { StageBadge } from "@/components/dashboard/stage-badge";
 import { Button } from "@/components/ui/button";
-import { CentralCTA } from "@/components/dashboard/central-cta";
 import {
   Select,
   SelectContent,

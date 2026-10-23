@@ -45,11 +45,6 @@ export function OpportunityActions({ opportunity, align = "end" }: OpportunityAc
     markLost,
     deleteOpportunity,
     requestDeletion,
-    createInvoice,
-    updateInvoice,
-    sendInvoice,
-    recordChurn,
-    updateOpportunityChurnState,
   } = usePipeline();
   const { membershipRole, userId } = useAuth();
   const isOwner = membershipRole === "owner";
@@ -66,21 +61,6 @@ export function OpportunityActions({ opportunity, align = "end" }: OpportunityAc
   const [deleteReason, setDeleteReason] = React.useState("");
   const [confirmRequest, setConfirmRequest] = React.useState(false);
   const [requestReason, setRequestReason] = React.useState("");
-const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const [deleteReason, setDeleteReason] = React.useState("");
-  const [confirmRequest, setConfirmRequest] = React.useState(false);
-  const [requestReason, setRequestReason] = React.useState("");
-  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = React.useState(false);
-  const [createInvoiceDraft, setCreateInvoiceDraft] = React.useState<InvoiceDraft>({
-    clientName: "",
-    clientEmail: "",
-    clientPhone: "",
-    amount: 0,
-    lineItems: [],
-    notes: "",
-  });
-  const [isRecordChurnOpen, setIsRecordChurnOpen] = React.useState(false);
-  const [churnReason, setChurnReason] = React.useState("");
 
   return (
     <>
@@ -142,7 +122,6 @@ const [confirmDelete, setConfirmDelete] = React.useState(false);
             <CircleX />
             Mark as lost
           </DropdownMenuItem>
-<DropdownMenuItem\n            disabled={opportunity.stage !== \"Closed Won\"}\n            onSelect={() => openCreateInvoiceDialog(opportunity.id)}\n          >\n            <Invoice className=\"h-3.5 w-3.5\" />\n            Create invoice\n          </DropdownMenuItem>\n          <DropdownMenuItem\n            disabled={opportunity.stage !== \"Closed Won\"}\n            onSelect={() => openRecordChurnDialog(opportunity.id)}\n          >\n            <Trash className=\"h-3.5 w-3.5\" />\n            Record churn\n          </DropdownMenuItem>\n          <DropdownMenuSeparator />
           <DropdownMenuSeparator />
           {isOwner ? (
             <DropdownMenuItem className="on-danger" onSelect={() => setConfirmDelete(true)}>

@@ -5,12 +5,10 @@
   "description": "SalesFlow - interactive sales pipeline overview & management dashboard",
   "scripts": {
     "dev": "next dev",
-    "dev:qa": "next dev --port 3010",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "node --test --require ./tests/register-typescript.cjs tests/phase1-domain.test.mjs",
-    "test:invite": "node --test tests/invite-api.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

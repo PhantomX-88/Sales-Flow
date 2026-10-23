@@ -9,7 +9,6 @@ export type PipelineStage =
   | "Discovery"
   | "Qualified"
   | "Proposal"
-  | "Invoiced"
   | "Negotiation"
   | "Closed Won"
   | "Closed Lost";
@@ -54,10 +53,6 @@ export interface Opportunity {
   accountId?: string;
   /** Optional link to a shared contact record (legacy `contact` text is kept). */
   contactId?: string;
-  /* Payment tracking for Closed Won deals */
-  amountPaid?: number;
-  installmentFrequency?: "none" | "monthly" | "quarterly" | "triannual" | "biannual";
-  nextPaymentDate?: string;
 }
 
 export interface DeletionRequest {
@@ -371,69 +366,3 @@ export interface ContactRecord {
   createdAt: string;
   updatedAt?: string;
 }
-
-/* ------------------------------------------------------------------ */
-/* Invoices (Phase 2 — invoicing & payment tracking)                  */
-/* ------------------------------------------------------------------ */
-
-export type InvoiceStatus = "draft" | "pending_approval" | "approved" | "sent" | "paid";
-
-export interface Invoice {
-  id: string;
-  organizationId: string;
-  opportunityId: string;
-  invoiceNumber: string;
-  clientName: string;
-  clientEmail?: string;
-  clientPhone?: string;
-  amount: number;
-  status: InvoiceStatus;
-  dueDate?: string;
-  lineItems: InvoiceLineItem[];
-  notes?: string;
-  createdBy: string;
-  createdByName?: string;
-  approvedBy?: string;
-  approvedByName?: string;
-  approvedAt?: string;
-  sentAt?: string;
-  sentMethod?: "email" | "whatsapp";
-  sentUrl?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface InvoiceLineItem {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  amount: number;
-}
-
-export interface InvoiceDraft {
-  clientName: string;
-  clientEmail?: string;
-  clientPhone?: string;
-  amount: number;
-  dueDate?: string;
-  lineItems: InvoiceLineItem[];
-  notes?: string;
-}
-
-/* ------------------------------------------------------------------ */
-/* Churn records (Phase 2 — churn tracking)                           */
-/* ------------------------------------------------------------------ */
-
-export interface ChurnRecord {
-  id: string;
-  organizationId: string;
-  opportunityId: string;
-  churnedAt: string;
-  reason: string;
-  outstandingAmount: number;
-  notes?: string;
-  createdBy: string;
-  createdByName?: string;
-  createdAt: string;
-}
-
