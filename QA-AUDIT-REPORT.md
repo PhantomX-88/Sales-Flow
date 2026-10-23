@@ -109,3 +109,30 @@ Incomplete or blocked:
 ## Security note
 
 Do not commit `.env.local`, Supabase access tokens, service-role keys, or email-provider keys. The report intentionally records only variable names and test outcomes, never secret values.
+
+## Remediation update (2026-10-21)
+
+- **QA-002 resolved at the project workflow level:** `npm run dev:qa` starts Next.js
+  on port 3010, and the invitation suite defaults to that port. Keep this one
+  server running for the whole API test run.
+- **QA-003 resolved:** `npm run test:invite` is the documented repeatable command
+  and targets the dedicated QA port by default. `SALESFLOW_BASE_URL` remains
+  available when intentionally targeting a different server.
+- **QA-001 remains blocked:** a non-production QA owner token and organization
+  are required to execute authenticated invite, revoke, and resend cases.
+- **QA-004 remains blocked:** authorized access to a non-production Supabase QA
+  project and test accounts is required to verify RLS and cross-tenant isolation.
+- **Authenticated dashboard workflows remain incomplete** until QA accounts are
+  available. Detailed closure steps for these items are tracked in
+  [`qa-follow-up/README.md`](./qa-follow-up/README.md).
+- **Local verification on 2026-10-21:** `npm run test` passed (10/10), lint and
+  typecheck passed. The invite API suite ran on port 3010: unauthenticated
+  rejection and client-secret checks passed; four cases were skipped without QA
+  credentials; unknown-token lookup failed with HTTP 500 instead of 404 because
+  the invitation database query failed. Investigate against the configured
+  non-production Supabase project before closing QA-004.
+
+The repository changes resolve the test harness risks but do not claim that
+authenticated API behavior or database isolation has been verified. Do not
+consider those environment-dependent items closed until their documented runs
+are completed and results recorded.

@@ -19,6 +19,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { OwnerAvatar } from "@/components/dashboard/owner-avatar";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
+import { CentralCTA } from "@/components/dashboard/central-cta";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -171,11 +172,10 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
             <TooltipContent>Export filtered opportunities (CSV)</TooltipContent>
           </Tooltip>
 
-          <Button onClick={openCreateDialog} size="sm" className="h-9">
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">New opportunity</span>
-            <span className="sm:hidden">New</span>
-          </Button>
+          
+
+          {/* Centralized CTA replaces inline button */}
+          <CentralCTA />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

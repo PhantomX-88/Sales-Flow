@@ -18,7 +18,7 @@ import { KanbanBoard } from "@/components/dashboard/kanban-board";
 import { OpportunityListCard } from "@/components/dashboard/opportunity-card";
 import { OpportunityTable } from "@/components/dashboard/opportunity-table";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
-import { Button } from "@/components/ui/button";
+import { CentralCTA } from "@/components/dashboard/central-cta";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -169,9 +169,7 @@ export function OpportunitiesSection() {
                   No opportunities found. Try changing your filters or search terms.
                 </p>
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <Button size="sm" onClick={openCreateDialog}>
-                    Add a deal
-                  </Button>
+                  <CentralCTA />
                   <Button variant="outline" size="sm" onClick={openImportDialog}>
                     Import CSV
                   </Button>

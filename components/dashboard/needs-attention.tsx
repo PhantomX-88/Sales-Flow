@@ -8,6 +8,7 @@ import {
   ListTodo,
   PencilLine,
   RefreshCw,
+import { CentralCTA } from "@/components/dashboard/central-cta";
 } from "lucide-react";
 
 import { EmptyState } from "@/components/dashboard/empty-state";

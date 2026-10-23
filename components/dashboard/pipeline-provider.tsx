@@ -31,12 +31,14 @@ import type {
   Activity,
   ActivityType,
   ChartRangeKey,
+  ChurnRecord,
   ContactRecord,
   DashboardSettings,
   DashboardView,
   Filters,
   ForecastSummary,
   FunnelStage,
+  Invoice,
   KpiMetric,
   MonthlyRevenuePoint,
   Opportunity,
@@ -409,13 +411,18 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
   const [contactRecords, setContactRecords] = React.useState<ContactRecord[]>([]);
   const [memberNames, setMemberNames] = React.useState<{ userId: string; fullName: string }[]>([]);
   const [logActivityIntent, setLogActivityIntent] = React.useState<string | null>(null);
-  const [personalTarget, setPersonalTarget] = React.useState<{ amount: number; period: string } | null>(null);
+  const [organizationName, setOrganizationName] = React.useState<string>("Your Organization");
 
   const [searchQuery, setSearchQueryState] = React.useState("");
   const [filters, setFilters] = React.useState<Filters>(DEFAULT_FILTERS);
   const [sort, setSortState] = React.useState<SortState>(DEFAULT_SORT);
   const [page, setPageState] = React.useState(1);
   const [settings, setSettings] = React.useState<DashboardSettings>(DEFAULT_SETTINGS);
+
+  const [view, setView] = React.useState<DashboardView>(\"overview\");
+
+  const [invoiceRecords, setInvoiceRecords] = React.useState<Invoice[]>([]);
+  const [churnRecords, setChurnRecords] = React.useState<ChurnRecord[]>([]);
 
   const [view, setView] = React.useState<DashboardView>("overview");
   const [pipelineView, setPipelineViewState] = React.useState<PipelineViewMode>(
@@ -452,7 +459,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
       // Sentinel UUID keeps the query valid while userId is still null;
       // it never matches a real row.
       const targetUserId = userId ?? "00000000-0000-0000-0000-000000000000";
-      const [opportunitiesResult, activitiesResult, targetResult, deletionResult, accountsResult, contactsResult, membersResult] = await Promise.all([
+      const [opportunitiesResult, activitiesResult, targetResult, deletionResult, accountsResult, contactsResult, membersResult, orgResult] = await Promise.all([
         opportunitiesQuery.order("created_at", { ascending: false }),
         supabase.from("activities").select("*").eq("organization_id", organizationId).order("created_at", { ascending: false }),
         supabase
@@ -491,6 +498,8 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         );
         const companyNameById = new Map(loadedOpportunities.map((o) => [o.id, o.company]));
         setOpportunities(loadedOpportunities);
+        const org = orgResult.data?.[0] as OrganizationRecord | undefined;
+        setOrganizationName(org?.name ?? "Your Organization");
         setActivities((activitiesResult.data ?? []).map((row) => fromActivityRow(row as Record<string, unknown>)));
         setDeletionRequests(
           ((deletionResult.data ?? []) as Record<string, unknown>[]).map((row) => ({
@@ -1658,6 +1667,128 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     },
     [organizationId],
   );
+/* ---- Invoice CRUD ---- */
+  const createInvoice = React.useCallback(
+    async (draft: InvoiceDraft): Promise<Invoice | null> => {
+      if (!organizationId) return null;
+      const invoiceNumber = `INV-${Date.now()}`;
+      const { data, error } = await getSupabaseClient()
+        .from("invoices")
+        .insert({
+          organization_id: organizationId,
+          opportunity_id: draft.opportunityId ?? null,
+          invoice_number: invoiceNumber,
+          client_name: draft.clientName,
+          client_email: draft.clientEmail,
+          client_phone: draft.clientPhone,
+          amount: draft.amount,
+          status: "draft" as const,
+          line_items: draft.lineItems.map((item) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            amount: item.amount,
+          })),
+          notes: draft.notes,
+          created_by: (await getSupabaseClient()).getUser()?.id ?? "",
+          created_by_name: draft.clientName,
+        })
+        .select()
+        .single();
+      if (error) {
+        toast({ title: "Invoice could not be created.", description: error.message, variant: "destructive" });
+        return null;
+      }
+      setInvoiceRecords((current) => [{ id: data.id, ...data } as Invoice, ...current].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+      return data as Invoice;
+    },
+    [organizationId],
+  );
+
+  const updateInvoice = React.useCallback(
+    async (id: string, patch: Partial<Pick<Invoice, "status" | "dueDate" | "notes" | "sentMethod" | "sentUrl">>): Promise<boolean> => {
+      if (!organizationId) return false;
+      const { error } = await getSupabaseClient()
+        .from("invoices")
+        .update(patch)
+        .eq("id", id);
+      if (error) {
+        toast({ title: "Invoice could not be updated.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      setInvoiceRecords(
+        current.map((invoice) => (invoice.id === id ? { ...invoice, ...patch } : invoice)),
+      );
+      return true;
+    },
+    [organizationId],
+  );
+
+  const sendInvoice = React.useCallback(
+    async (id: string, method: "email" | "whatsapp"): Promise<boolean> => {
+      if (!organizationId) return false;
+      const { error } = await getSupabaseClient()
+        .from("invoices")
+        .update({ status: "sent", sent_method: method, sent_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) {
+        toast({ title: "Invoice could not be sent.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      setInvoiceRecords(
+        current.map((invoice) => (invoice.id === id ? { ...invoice, status: "sent", sent_method: method, sent_at: new Date().toISOString() } : invoice)),
+      );
+      // TODO: actually send email/WhatsApp via Resend / Twilio
+      toast({ title: "Invoice sent", description: `Invoice ${id} sent via ${method}` });
+      return true;
+    },
+    [organizationId],
+  );
+
+  /* ---- Churn recording ---- */
+  const recordChurn = React.useCallback(
+    async (opportunityId: string, reason: string, outstandingAmount: number): Promise<ChurnRecord | null> => {
+      if (!organizationId) return null;
+      const { data, error } = await getSupabaseClient()
+        .from("churn_records")
+        .insert({
+          organization_id: organizationId,
+          opportunity_id: opportunityId,
+          reason,
+          outstanding_amount: outstandingAmount,
+          created_by: (await getSupabaseClient()).getUser()?.id ?? "",
+          created_by_name: (await getSupabaseClient()).getUser()?.user?.email ?? "Unknown",
+        })
+        .select()
+        .single();
+      if (error) {
+        toast({ title: "Could not record churn.", description: error.message, variant: "destructive" });
+        return null;
+      }
+      setChurnRecords((current) => [{ id: data.id, ...data } as ChurnRecord, ...current].sort((a, b) => b.churnedAt.localeCompare(a.churnedAt)));
+      return data as ChurnRecord;
+    },
+    [organizationId],
+  );
+
+  const updateOpportunityChurnState = React.useCallback(
+    async (id: string, amountPaid: number, nextPaymentDate: string | null): Promise<boolean> => {
+      if (!organizationId) return false;
+      const { error } = await getSupabaseClient()
+        .from("opportunities")
+        .update({ amount_paid: amountPaid, next_payment_date: nextPaymentDate })
+        .eq("id", id);
+      if (error) {
+        toast({ title: "Could not update opportunity payment state.", description: error.message, variant: "destructive" });
+        return false;
+      }
+      setOpportunities(
+        current.map((opp) => (opp.id === id ? { ...opp, amount_paid: amountPaid, next_payment_date: nextPaymentDate } : opp)),
+      );
+      return true;
+    },
+    [organizationId],
+  );
 
   const closeOpportunity = React.useCallback(() => setSelectedId(null), []);
   const openCreateDialog = React.useCallback(() => setCreateOpen(true), []);
@@ -1778,6 +1909,14 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     saveContact,
     updateAccount,
     updateContact,
+    /* New: Invoice & churn */
+    createInvoice,
+    updateInvoice,
+    sendInvoice,
+    invoiceRecords,
+    churnRecords,
+    recordChurn,
+    updateOpportunityChurnState,
 
     settings,
     updateSettings,

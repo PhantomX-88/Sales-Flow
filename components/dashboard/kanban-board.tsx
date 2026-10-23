@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { KanbanCard } from "@/components/dashboard/opportunity-card";
 import { TableSkeleton } from "@/components/dashboard/loading-skeleton";
 import { usePipeline } from "@/components/dashboard/pipeline-provider";
-import { Button } from "@/components/ui/button";
+import { CentralCTA } from "@/components/dashboard/central-cta";
 import type { Opportunity, PipelineStage } from "@/lib/types";
 import { cn, formatCurrencyCompact, STAGE_DOT_STYLES } from "@/lib/utils";
 
@@ -161,15 +161,7 @@ export function KanbanBoard() {
                   )}
 
                   {stage === "Lead" ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="mt-auto justify-start text-muted-foreground"
-                      onClick={openCreateDialog}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add opportunity
-                    </Button>
+                    <CentralCTA />
                   ) : null}
                 </div>
               </section>
