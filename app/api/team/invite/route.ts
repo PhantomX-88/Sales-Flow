@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       if (insertError?.code === "23505") {
         return jsonError("A pending invitation already exists for that email.", 409);
       }
-      return jsonError(insertError?.message ?? "The invitation could not be created.", 500);
+      return jsonError("The invitation could not be created. Try again later.", 500);
     }
 
     const acceptUrl = `${siteUrl}/accept-invite?token=${rawToken}`;
@@ -151,7 +151,7 @@ export async function POST(request: Request) {
         email_sent: sent,
       },
     });
-    if (auditError) console.error("[api/team/invite] audit log insert failed:", auditError);
+    if (auditError) console.error("[api/team/invite] audit log insert failed:", auditError.code ?? "unknown");
 
     const warning = [
       mailError ?? (sent ? null : "Email is not configured (RESEND_API_KEY). Share the invitation link manually."),
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
-    console.error("[api/team/invite]", error);
-    return jsonError(error instanceof Error ? error.message : "Unexpected server error.", 500);
+    console.error(`[api/team/invite] Unexpected server error (${error instanceof Error ? error.name : "unknown"}).`);
+    return jsonError("The invitation could not be created. Try again later.", 500);
   }
 }

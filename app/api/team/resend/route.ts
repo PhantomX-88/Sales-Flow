@@ -64,11 +64,11 @@ export async function POST(request: Request) {
       .eq("id", invitationId)
       .eq("organization_id", organizationId)
       .eq("status", "pending")
+      .eq("send_count", invitation.send_count)
       .select("id, email, expires_at, send_count")
-      .single();
-    if (updateError || !updated) {
-      return jsonError("The invitation could not be resent.", 500);
-    }
+      .maybeSingle();
+    if (updateError) return jsonError("The invitation could not be resent.", 500);
+    if (!updated) return jsonError("The invitation changed during this request. Refresh and try again.", 409);
 
     const acceptUrl = `${siteUrl}/accept-invite?token=${rawToken}`;
     const { sent, error: mailError } = await sendInvitationEmail({
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       entity_id: invitationId,
       metadata: { email: updated.email, send_count: updated.send_count, email_sent: sent },
     });
-    if (auditError) console.error("[api/team/resend] audit log insert failed:", auditError);
+    if (auditError) console.error("[api/team/resend] audit log insert failed:", auditError.code ?? "unknown");
 
     const warning = [
       mailError ?? (sent ? null : "Email is not configured (RESEND_API_KEY). Share the invitation link manually."),
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
-    console.error("[api/team/resend]", error);
-    return jsonError(error instanceof Error ? error.message : "Unexpected server error.", 500);
+    console.error(`[api/team/resend] Unexpected server error (${error instanceof Error ? error.name : "unknown"}).`);
+    return jsonError("The invitation could not be resent. Try again later.", 500);
   }
 }

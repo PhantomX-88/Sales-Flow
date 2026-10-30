@@ -51,14 +51,14 @@ export async function POST(request: Request) {
       entity_id: invitationId,
       metadata: { email: invitation.email },
     });
-    if (auditError) console.error("[api/team/revoke] audit log insert failed:", auditError);
+    if (auditError) console.error("[api/team/revoke] audit log insert failed:", auditError.code ?? "unknown");
 
     return Response.json({
       ok: true,
       warning: auditError ? "The invitation was revoked but could not be recorded in the audit log." : null,
     });
   } catch (error) {
-    console.error("[api/team/revoke]", error);
-    return jsonError(error instanceof Error ? error.message : "Unexpected server error.", 500);
+    console.error(`[api/team/revoke] Unexpected server error (${error instanceof Error ? error.name : "unknown"}).`);
+    return jsonError("The invitation could not be revoked. Try again later.", 500);
   }
 }
