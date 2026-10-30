@@ -4,7 +4,6 @@ import { resolveSiteUrl, sendInvitationEmail } from "@/lib/server/mailer";
 import { generateInviteToken, hashInviteToken } from "@/lib/server/tokens";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_INVITES_PER_ORG_PER_HOUR = 20;
 const TARGET_PERIODS = ["monthly", "quarterly", "annual"];
 
 /**
@@ -26,6 +25,7 @@ export async function POST(request: Request) {
     if ("response" in gate) return gate.response;
     const { owner, admin } = gate;
     const organizationId = String(body.organizationId);
+    const siteUrl = resolveSiteUrl(request);
 
     const email = String(body.email ?? "").trim().toLowerCase();
     if (email.length > 254 || !EMAIL_PATTERN.test(email)) {
@@ -48,15 +48,13 @@ export async function POST(request: Request) {
     const { error: expiryError } = await admin.rpc("expire_stale_invitations");
     if (expiryError) return jsonError("Could not refresh expired invitations.", 500);
 
-    // Rate limit: max 20 invitations per organization per hour.
-    const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { count, error: countError } = await admin
-      .from("invitations")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .gte("created_at", hourAgo);
-    if (countError) return jsonError("Could not check invitation limits.", 500);
-    if ((count ?? 0) >= MAX_INVITES_PER_ORG_PER_HOUR) {
+    // Database-side counter serializes concurrent requests for this org.
+    const { data: hasInvitationSlot, error: limitError } = await admin.rpc(
+      "claim_invitation_slot",
+      { target_organization_id: organizationId },
+    );
+    if (limitError) return jsonError("Could not check invitation limits.", 500);
+    if (!hasInvitationSlot) {
       return jsonError("Rate limit reached: at most 20 invitations per organization per hour.", 429);
     }
 
@@ -130,7 +128,7 @@ export async function POST(request: Request) {
       return jsonError(insertError?.message ?? "The invitation could not be created.", 500);
     }
 
-    const acceptUrl = `${resolveSiteUrl(request)}/accept-invite?token=${rawToken}`;
+    const acceptUrl = `${siteUrl}/accept-invite?token=${rawToken}`;
     const { sent, error: mailError } = await sendInvitationEmail({
       to: email,
       organizationName: organization?.name ?? "",
@@ -162,14 +160,17 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join(" ");
 
-    return Response.json({
-      ok: true,
-      invitationId: invitation.id,
-      expiresAt: invitation.expires_at,
-      acceptUrl,
-      emailSent: sent,
-      warning: warning || null,
-    });
+    return Response.json(
+      {
+        ok: true,
+        invitationId: invitation.id,
+        expiresAt: invitation.expires_at,
+        acceptUrl,
+        emailSent: sent,
+        warning: warning || null,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     console.error("[api/team/invite]", error);
     return jsonError(error instanceof Error ? error.message : "Unexpected server error.", 500);

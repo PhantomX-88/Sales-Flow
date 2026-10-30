@@ -32,7 +32,7 @@ create table if not exists public.opportunities (
   contact text not null default 'Unassigned',
   email text,
   phone text,
-  stage text not null check (stage in ('Lead', 'Discovery', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost')),
+  stage text not null check (stage in ('Lead', 'Discovery', 'Qualified', 'Proposal', 'Invoiced', 'Negotiation', 'Closed Won', 'Closed Lost')),
   value numeric not null default 0 check (value >= 0),
   probability integer not null default 0 check (probability between 0 and 100),
   owner text not null,
@@ -1022,12 +1022,24 @@ create unique index if not exists invitations_pending_one_per_email_uidx
 create index if not exists invitations_organization_id_idx
   on public.invitations (organization_id, status, created_at desc);
 
+-- Atomic per-organization invitation throttle. One row per organization is
+-- updated through a security-definer RPC, so concurrent invite requests do
+-- not all pass a separate count-then-insert check.
+create table if not exists public.invitation_rate_limits (
+  organization_id uuid primary key references public.organizations(id) on delete cascade,
+  window_started_at timestamptz not null default now(),
+  attempt_count integer not null default 0 check (attempt_count between 0 and 21),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.invitations enable row level security;
 alter table public.sales_targets enable row level security;
+alter table public.invitation_rate_limits enable row level security;
 
 grant select on public.invitations, public.sales_targets to authenticated;
 revoke insert, update, delete on public.invitations from public, anon, authenticated;
 revoke insert, update, delete on public.sales_targets from public, anon, authenticated;
+revoke all on public.invitation_rate_limits from public, anon, authenticated;
 
 -- Recreate policies idempotently for Phase 2 tables (profiles is re-created
 -- below so owners can read teammate display names on the Team page).
@@ -1244,6 +1256,41 @@ $$;
 -- clients — keeps linter 0029 off a maintenance job.
 revoke all on function public.expire_stale_invitations() from public, anon, authenticated;
 grant execute on function public.expire_stale_invitations() to service_role;
+
+-- Atomically reserve one of 20 invitation attempts in a rolling hour.
+-- The UPSERT row lock serializes concurrent calls for the same organization.
+create or replace function public.claim_invitation_slot(target_organization_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  current_attempt_count integer;
+begin
+  insert into public.invitation_rate_limits as rate_limit (
+    organization_id, window_started_at, attempt_count, updated_at
+  ) values (
+    target_organization_id, now(), 1, now()
+  )
+  on conflict (organization_id) do update
+  set window_started_at = case
+        when rate_limit.window_started_at <= now() - interval '1 hour' then now()
+        else rate_limit.window_started_at
+      end,
+      attempt_count = case
+        when rate_limit.window_started_at <= now() - interval '1 hour' then 1
+        else least(rate_limit.attempt_count + 1, 21)
+      end,
+      updated_at = now()
+  returning attempt_count into current_attempt_count;
+
+  return current_attempt_count <= 20;
+end;
+$$;
+
+revoke all on function public.claim_invitation_slot(uuid) from public, anon, authenticated;
+grant execute on function public.claim_invitation_slot(uuid) to service_role;
 
 -- Deactivate / reactivate members (owner only, enforced server-side).
 create or replace function public.set_member_status(
@@ -1854,6 +1901,10 @@ begin
 
   if not found then
     raise exception 'Opportunity not found.';
+  end if;
+
+  if not public.is_organization_member(v_opportunity.organization_id) then
+    raise exception 'Only an active organization member can request deletion.';
   end if;
 
   if v_opportunity.deleted_at is not null then

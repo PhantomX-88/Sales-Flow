@@ -611,6 +611,41 @@ begin
   raise notice 'PASS: only the SHA-256 hash is stored, never the raw token';
 end $$;
 
+-- TEST 16: invitation throttle is server-only and enforces 20 attempts -----
+delete from public.invitation_rate_limits
+where organization_id = '00000000-0000-4000-8000-aaaa00000001';
+
+do $$
+begin
+  perform set_config('request.jwt.claims',
+    '{"sub":"00000000-0000-4000-8000-0000000000a3","role":"authenticated","email":"rep_a@phase2.test"}', true);
+  perform set_config('role', 'authenticated', true);
+  perform public.claim_invitation_slot('00000000-0000-4000-8000-aaaa00000001');
+  raise exception 'FAIL: authenticated client called the server-only throttle';
+exception
+  when insufficient_privilege then
+    raise notice 'PASS: authenticated clients cannot call the invitation throttle';
+end $$;
+reset role;
+
+do $$
+declare
+  attempt integer;
+begin
+  for attempt in 1..20 loop
+    if not public.claim_invitation_slot('00000000-0000-4000-8000-aaaa00000001') then
+      raise exception 'FAIL: invitation slot % was denied', attempt;
+    end if;
+  end loop;
+  if public.claim_invitation_slot('00000000-0000-4000-8000-aaaa00000001') then
+    raise exception 'FAIL: invitation attempt 21 was allowed';
+  end if;
+  raise notice 'PASS: invitation throttle allows 20 attempts and denies attempt 21';
+end $$;
+
+delete from public.invitation_rate_limits
+where organization_id = '00000000-0000-4000-8000-aaaa00000001';
+
 -- Cleanup ------------------------------------------------------------------
 do $$
 begin

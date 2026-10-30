@@ -51,7 +51,8 @@ values
   ('00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-aaaa00000001', 'Phase5 Request Deal', 'Proposal', 1500, 60, 'Rep A', '00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a3', current_date, current_date),
   ('00000000-0000-4000-8000-0000000000e2', '00000000-0000-4000-8000-aaaa00000001', 'Phase5 NotMine Deal', 'Lead', 800, 10, 'Owner A', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1', current_date, current_date),
   ('00000000-0000-4000-8000-0000000000e3', '00000000-0000-4000-8000-aaaa00000001', 'Phase5 Direct Deal', 'Discovery', 900, 20, 'Owner A', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1', current_date, current_date),
-  ('00000000-0000-4000-8000-0000000000e4', '00000000-0000-4000-8000-aaaa00000001', 'Phase5 OldDeleted Deal', 'Lead', 400, 10, 'Owner A', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1', current_date, current_date)
+  ('00000000-0000-4000-8000-0000000000e4', '00000000-0000-4000-8000-aaaa00000001', 'Phase5 OldDeleted Deal', 'Lead', 400, 10, 'Owner A', '00000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1', current_date, current_date),
+  ('00000000-0000-4000-8000-0000000000e5', '00000000-0000-4000-8000-aaaa00000001', 'Phase5 Inactive Member Deal', 'Lead', 600, 10, 'Rep A', '00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a3', current_date, current_date)
 on conflict (id) do update set owner_id = excluded.owner_id, created_by = excluded.created_by, deleted_at = null;
 
 -- Fresh audit/request state for re-runs.
@@ -316,8 +317,37 @@ begin
   raise notice 'PASS: soft-deleted rows are invisible to sub-users (RLS)';
 end $$;
 
+-- TEST 12: a deactivated member cannot use the SECURITY DEFINER request RPC
+update public.organization_members
+set status = 'inactive'
+where organization_id = '00000000-0000-4000-8000-aaaa00000001'
+  and user_id = '00000000-0000-4000-8000-0000000000a3';
+
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a3","role":"authenticated","email":"rep_a@phase5.test"}', false);
+
+do $$
+begin
+  perform public.request_deletion(
+    '00000000-0000-4000-8000-0000000000e5',
+    'Request after being deactivated'
+  );
+  raise exception 'FAIL: inactive member created a deletion request';
+exception
+  when others then
+    if sqlerrm <> 'Only an active organization member can request deletion.' then
+      raise exception 'FAIL: unexpected inactive-member error: %', sqlerrm;
+    end if;
+    raise notice 'PASS: inactive member cannot use request_deletion';
+end $$;
+
+update public.organization_members
+set status = 'active'
+where organization_id = '00000000-0000-4000-8000-aaaa00000001'
+  and user_id = '00000000-0000-4000-8000-0000000000a3';
+
 -- Cleanup ---------------------------------------------------------------
-delete from public.opportunities where id in ('00000000-0000-4000-8000-0000000000e1','00000000-0000-4000-8000-0000000000e2','00000000-0000-4000-8000-0000000000e3','00000000-0000-4000-8000-0000000000e4');
+delete from public.opportunities where id in ('00000000-0000-4000-8000-0000000000e1','00000000-0000-4000-8000-0000000000e2','00000000-0000-4000-8000-0000000000e3','00000000-0000-4000-8000-0000000000e4','00000000-0000-4000-8000-0000000000e5');
 delete from public.organization_members where organization_id = '00000000-0000-4000-8000-aaaa00000001';
 delete from public.organizations where id = '00000000-0000-4000-8000-aaaa00000001';
 delete from public.audit_log where organization_id = '00000000-0000-4000-8000-aaaa00000001';

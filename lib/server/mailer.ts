@@ -7,12 +7,45 @@ export interface InvitationEmailInput {
   expiresAt: string;
 }
 
-/** SITE_URL (prod) → request origin (dev proxy) → localhost fallback. */
+/** Uses a configured public origin in production; request headers are untrusted. */
 export function resolveSiteUrl(request: Request): string {
   const configured = process.env.SITE_URL;
-  if (configured) return configured.replace(/\/+$/, "");
+  if (configured) {
+    let site: URL;
+    try {
+      site = new URL(configured);
+    } catch {
+      throw new Error("SITE_URL must be a valid application origin.");
+    }
+    if (
+      !["http:", "https:"].includes(site.protocol) ||
+      site.username ||
+      site.password ||
+      site.pathname !== "/" ||
+      site.search ||
+      site.hash ||
+      (process.env.NODE_ENV === "production" && site.protocol !== "https:")
+    ) {
+      throw new Error("SITE_URL must be a valid HTTPS origin in production.");
+    }
+    return site.origin;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SITE_URL must be configured for production invitations.");
+  }
+
   const origin = request.headers.get("origin");
-  if (origin) return origin.replace(/\/+$/, "");
+  if (origin) {
+    try {
+      const parsedOrigin = new URL(origin);
+      if (["http:", "https:"].includes(parsedOrigin.protocol) && !parsedOrigin.username && !parsedOrigin.password) {
+        return parsedOrigin.origin;
+      }
+    } catch {
+      // Fall through to the local development URL.
+    }
+  }
   return "http://localhost:3000";
 }
 
@@ -50,7 +83,7 @@ export async function sendInvitationEmail(
 ): Promise<{ sent: boolean; error: string | null }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn(`[mail] RESEND_API_KEY is not set; skipping invitation email to ${input.to}.`);
+    console.warn("[mail] RESEND_API_KEY is not set; skipping invitation email.");
     return { sent: false, error: null };
   }
 
@@ -77,12 +110,14 @@ export async function sendInvitationEmail(
     });
 
     if (!response.ok) {
-      console.error(`[mail] Resend returned ${response.status}: ${await response.text()}`);
+      console.error(`[mail] Resend returned HTTP ${response.status}.`);
       return { sent: false, error: "The invitation email could not be sent. Share the link manually." };
     }
     return { sent: true, error: null };
   } catch (error) {
-    console.error("[mail] Failed to send invitation email:", error);
+    console.error(
+      `[mail] Invitation email request failed (${error instanceof Error ? error.name : "unknown error"}).`,
+    );
     return { sent: false, error: "The invitation email could not be sent. Share the link manually." };
   }
 }

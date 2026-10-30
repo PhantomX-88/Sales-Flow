@@ -206,8 +206,15 @@ export function closeDateTone(iso: string, today: string): "danger" | "warning" 
 /* ------------------------------------------------------------------ */
 
 function escapeCsvCell(cell: string | number): string {
-  const value = String(cell ?? "");
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  const rawValue = String(cell ?? "");
+  // Spreadsheet programs can execute formula-like text even when it is a
+  // quoted CSV cell. Prefix only user-provided strings; numeric negatives
+  // remain numeric values in the export.
+  const value =
+    typeof cell === "string" && /^[\t\r\n ]*[=+\-@]/.test(rawValue)
+      ? `'${rawValue}`
+      : rawValue;
+  return /[",\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 export function buildCsv(rows: (string | number)[][]): string {

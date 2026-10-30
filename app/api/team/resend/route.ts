@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     if ("response" in gate) return gate.response;
     const { owner, admin } = gate;
     const organizationId = String(body.organizationId);
+    const siteUrl = resolveSiteUrl(request);
     const invitationId = String(body.invitationId ?? "");
     if (!/^[0-9a-f-]{36}$/i.test(invitationId)) {
       return jsonError("A valid invitation id is required.", 400);
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
       return jsonError("The invitation could not be resent.", 500);
     }
 
-    const acceptUrl = `${resolveSiteUrl(request)}/accept-invite?token=${rawToken}`;
+    const acceptUrl = `${siteUrl}/accept-invite?token=${rawToken}`;
     const { sent, error: mailError } = await sendInvitationEmail({
       to: updated.email,
       organizationName: organization?.name ?? "",
@@ -96,15 +97,18 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join(" ");
 
-    return Response.json({
-      ok: true,
-      invitationId: updated.id,
-      expiresAt: updated.expires_at,
-      sendCount: updated.send_count,
-      acceptUrl,
-      emailSent: sent,
-      warning: warning || null,
-    });
+    return Response.json(
+      {
+        ok: true,
+        invitationId: updated.id,
+        expiresAt: updated.expires_at,
+        sendCount: updated.send_count,
+        acceptUrl,
+        emailSent: sent,
+        warning: warning || null,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     console.error("[api/team/resend]", error);
     return jsonError(error instanceof Error ? error.message : "Unexpected server error.", 500);

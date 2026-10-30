@@ -135,14 +135,14 @@ export function SidebarContent({ activeView, onNavigate, className }: SidebarCon
                         "group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors duration-150",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                         isActive
-                          ? "bg-primary/10 font-semibold text-primary"
-                           : "font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-foreground",
+                          ? "bg-primary font-semibold text-primary-foreground shadow-sm"
+                          : "font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-foreground",
                       )}
                     >
                       <Icon
                         className={cn(
                           "h-4 w-4 shrink-0",
-                           isActive ? "text-primary" : "text-sidebar-foreground/50 group-hover:text-foreground",
+                          isActive ? "text-primary-foreground" : "text-sidebar-foreground/50 group-hover:text-foreground",
                         )}
                         aria-hidden="true"
                       />
