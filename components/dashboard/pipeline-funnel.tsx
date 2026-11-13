@@ -64,7 +64,7 @@ export function PipelineFunnel({ className }: { className?: string }) {
                     {stage.reachedCount} {stage.reachedCount === 1 ? "deal" : "deals"}
                   </span>
                   <span className="tabular font-medium text-foreground/80">
-                    {formatCurrencyCompact(stage.reachedValue, currency)}
+                    {stage.reachedValue !== undefined && stage.reachedValue !== null ? formatCurrencyCompact(stage.reachedValue, currency) : "0"}
                   </span>
                 </span>
               </div>

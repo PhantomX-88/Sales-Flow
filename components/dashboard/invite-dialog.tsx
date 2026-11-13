@@ -80,7 +80,9 @@ export function InviteDialog({ open, onOpenChange, organizationId, onInvited }: 
       setResult(invite);
       onInvited?.();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "The invitation could not be sent.");
+      const errorMsg = caught instanceof Error ? caught.message : "The invitation could not be sent.";
+      setError(errorMsg);
+      console.error("[Invite] Error sending invitation:", caught);
     } finally {
       setPending(false);
     }
