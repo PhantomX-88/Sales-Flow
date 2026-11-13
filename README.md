@@ -344,7 +344,7 @@ The reporting-period tabs on revenue charts select the chart's date range; the f
 2. **Env vars** on Vercel *and* locally in `.env.local`: `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY` (or SMTP equivalent), `SITE_URL`, `RESEND_FROM`.
 3. **Supabase Auth → URL Configuration**: add `http://localhost:3000/accept-invite` and `https://your-domain/accept-invite` as redirect URLs so email confirmation returns users to the invitation with the same token.
 4. **Scheduled job** (pg_cron or Vercel Cron): run `select expire_stale_invitations();` nightly (invite expiry) — the accept path and invite routes also sweep on read, so this is a safety net. The 30-day soft-delete purge arrives with Phase 5.
-5. **Run the tests**: `supabase/tests/phase2-tests.sql` in the SQL Editor (expect `ALL PHASE 2 TESTS PASSED`), then `node --test tests/invite-api.test.mjs` with `TEST_OWNER_TOKEN` and `TEST_ORG_ID` set while `npm run dev` runs.
+5. **Run the tests**: run the SQL regression suites in `supabase/tests/` against a dedicated non-production Supabase project. Start the app on a fixed local port, set `SALESFLOW_BASE_URL=http://127.0.0.1:3100`, then run `npm run test:api`. Set `TEST_OWNER_TOKEN` and `TEST_ORG_ID` in the same local shell to enable owner-only invitation flows. Remote API tests are blocked unless `ALLOW_REMOTE_API_TESTS=1` is explicitly set; never run state-changing tests against production.
 6. **Two-tab concurrency check**: open the same accept link in two browsers signed in as the invited user — exactly one accept should succeed; the other sees an idempotent success or an "already been used" error.
 
 ## Phase 3 — Sub-user dashboard (member-scoped RLS)
