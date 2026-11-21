@@ -1,29 +1,41 @@
-// Phase 2 API tests — zero dependencies (node:test + global fetch).
-//
-// Prereqs:
-//   1. `npm run dev` running locally with Supabase env configured.
-//   2. Export credentials of an ACTIVE OWNER account:
-//        TEST_OWNER_TOKEN  — Supabase access token (browser devtools →
-//                            localStorage → supabase.auth.token → access_token)
-//        TEST_ORG_ID       — that owner's organization id
-//        SALESFLOW_BASE_URL — optional, default http://localhost:3000
-//
-// Run:  node --test tests/invite-api.test.mjs
-
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const BASE = process.env.SALESFLOW_BASE_URL ?? "http://localhost:3000";
+// Start the app on a fixed port and set SALESFLOW_BASE_URL to that origin.
+// Add TEST_OWNER_TOKEN and TEST_ORG_ID to run state-changing invitation flows.
+// Remote targets require ALLOW_REMOTE_API_TESTS=1 and must be non-production.
+
+const configuredBase = process.env.SALESFLOW_BASE_URL;
+if (!configuredBase) {
+  throw new Error("Set SALESFLOW_BASE_URL explicitly before running the invitation API tests.");
+}
+
+const baseUrl = new URL(configuredBase);
+if (!["http:", "https:"].includes(baseUrl.protocol) || baseUrl.username || baseUrl.password) {
+  throw new Error("SALESFLOW_BASE_URL must be an HTTP(S) URL without embedded credentials.");
+}
+
+const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(baseUrl.hostname);
+if (!isLoopback && process.env.ALLOW_REMOTE_API_TESTS !== "1") {
+  throw new Error("Remote API tests are disabled. Set ALLOW_REMOTE_API_TESTS=1 only for a non-production QA project.");
+}
+
+const BASE = baseUrl.origin;
 const OWNER_TOKEN = process.env.TEST_OWNER_TOKEN;
 const ORG_ID = process.env.TEST_ORG_ID;
 const MISSING_CREDS = "set TEST_OWNER_TOKEN and TEST_ORG_ID to run";
+
+test("configured app responds before API tests run", async () => {
+  const response = await fetch(BASE);
+  assert.equal(response.status, 200, `Expected ${BASE} to serve the app`);
+});
 
 function uniqueEmail() {
   return `qa-invite-${Date.now()}-${Math.floor(Math.random() * 1e6)}@phase2.test`;
 }
 
 async function post(path, body, token = OWNER_TOKEN) {
-  const response = await fetch(BASE + path, {
+  const response = await fetch(new URL(path, BASE), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -35,7 +47,9 @@ async function post(path, body, token = OWNER_TOKEN) {
 }
 
 async function lookup(token) {
-  const response = await fetch(`${BASE}/api/invite/lookup?token=${encodeURIComponent(token)}`);
+  const url = new URL("/api/invite/lookup", BASE);
+  url.searchParams.set("token", token);
+  const response = await fetch(url);
   return { status: response.status, json: await response.json().catch(() => null) };
 }
 
@@ -126,7 +140,7 @@ test("lookup rejects unknown tokens with 404", async () => {
 });
 
 test("service-role credentials never appear in the client HTML", async () => {
-  const response = await fetch(BASE);
+  const response = await fetch(new URL("/", BASE));
   const html = await response.text();
   assert.ok(!html.includes("service_role"), "service-role key leaked into HTML");
   assert.ok(!html.includes("SUPABASE_SERVICE_ROLE_KEY"), "service-role env var name leaked into HTML");

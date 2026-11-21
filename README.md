@@ -343,8 +343,8 @@ The reporting-period tabs on revenue charts select the chart's date range; the f
 1. **Email deliverability**: Resend (or SMTP) with a verified sending domain and healthy DNS — SPF, DKIM and DMARC — so invitations land in Gmail, Yahoo and corporate inboxes instead of spam.
 2. **Env vars** on Vercel *and* locally in `.env.local`: `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY` (or SMTP equivalent), `SITE_URL`, `RESEND_FROM`.
 3. **Supabase Auth → URL Configuration**: add `http://localhost:3000/accept-invite` and `https://your-domain/accept-invite` as redirect URLs so email confirmation returns users to the invitation with the same token.
-4. **Scheduled job** (pg_cron or Vercel Cron): run `select expire_stale_invitations();` nightly (invite expiry) — the accept path and invite routes also sweep on read, so this is a safety net. The 30-day soft-delete purge arrives with Phase 5.
-5. **Run the tests**: `supabase/tests/phase2-tests.sql` in the SQL Editor (expect `ALL PHASE 2 TESTS PASSED`), then `node --test tests/invite-api.test.mjs` with `TEST_OWNER_TOKEN` and `TEST_ORG_ID` set while `npm run dev` runs.
+4. **Scheduled cleanup**: set `CRON_SECRET` in Vercel. The schedule in `vercel.json` calls `/api/cron/cleanup` nightly at 02:00 UTC to expire stale invitations and purge expired soft deletes. On other hosting, schedule both cleanup RPCs directly.
+5. **Run the tests**: `supabase/tests/phase2-tests.sql` in the SQL Editor (expect `ALL PHASE 2 TESTS PASSED`). Run the invitation API suite against a fixed local server with `SALESFLOW_BASE_URL=http://127.0.0.1:3000 npm run test:api`; set `TEST_OWNER_TOKEN` and `TEST_ORG_ID` to enable the state-changing invitation flows. Remote testing requires `ALLOW_REMOTE_API_TESTS=1` and must target a non-production QA project.
 6. **Two-tab concurrency check**: open the same accept link in two browsers signed in as the invited user — exactly one accept should succeed; the other sees an idempotent success or an "already been used" error.
 
 ## Phase 3 — Sub-user dashboard (member-scoped RLS)

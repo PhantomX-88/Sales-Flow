@@ -111,7 +111,10 @@ export function LandingPage() {
               <Link href="/login">Log in</Link>
             </Button>
             <Button asChild size="sm" className="h-9 px-3.5">
-              <Link href="/signup">Create an account</Link>
+              <Link href="/signup">
+                <span className="max-[360px]:hidden">Create an account</span>
+                <span className="hidden max-[360px]:inline">Sign up</span>
+              </Link>
             </Button>
           </div>
         </div>

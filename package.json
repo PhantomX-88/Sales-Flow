@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "node --test --require ./tests/register-typescript.cjs tests/phase1-domain.test.mjs tests/security-hardening.test.mjs",
+    "test:api": "node --test --require ./tests/register-typescript.cjs tests/invite-api.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
