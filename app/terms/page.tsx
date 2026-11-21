@@ -24,7 +24,7 @@ export default function TermsPage() {
     >
       <Section title="Agreement and provider">
         <p>
-          These terms are between you and <strong className="text-foreground">[insert legal entity name and business address]</strong>, the operator of SalesFlow. References to SalesFlow, we, or us mean this operator. By creating an account or using the service, you agree to these terms. If you use SalesFlow for an organization, you confirm that you are authorized to accept these terms for it.
+          These terms are between you and <strong className="text-foreground">Lakeside Technologies Ltd (trading as SalesFlow)</strong>, located in Lagos, Nigeria, the operator of SalesFlow. References to SalesFlow, we, or us mean this operator. By creating an account or using the service, you agree to these terms. If you use SalesFlow for an organization, you confirm that you are authorized to accept these terms for it.
         </p>
       </Section>
 
@@ -64,8 +64,8 @@ export default function TermsPage() {
 
       <Section title="Changes, governing law, and contact">
         <p>We may revise these terms as the service changes. We will update the date on this page and provide notice of material changes where appropriate.</p>
-        <p>These terms are governed by the laws of <strong className="text-foreground">[insert governing jurisdiction]</strong>, and disputes will be handled by the courts of <strong className="text-foreground">[insert venue]</strong>, subject to any mandatory rights that apply to you.</p>
-        <p>Questions about these terms: <strong className="text-foreground">[insert verified legal contact email and postal address]</strong>.</p>
+        <p>These terms are governed by the laws of the <strong className="text-foreground">Federal Republic of Nigeria</strong>, and disputes will be handled by the competent courts of Nigeria, subject to any mandatory rights that apply to you.</p>
+        <p>Legal contact: <a className="text-foreground underline" href="mailto:legal@lakesidetech.ng">legal@lakesidetech.ng</a>. Service support: <a className="text-foreground underline" href="mailto:support@lakesidetech.ng">support@lakesidetech.ng</a>. Address: Lagos, Nigeria.</p>
       </Section>
     </LegalPageLayout>
   );

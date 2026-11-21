@@ -7,6 +7,7 @@ require("./register-typescript.cjs");
 
 const { buildAttentionQueue } = require("../lib/attention.ts");
 const { computeForecast, computeMetrics, computeReminders, forecastPeriodWindow, isOpen } = require("../lib/metrics.ts");
+const { formatWhatsAppUrl } = require("../lib/utils.ts");
 const {
   autoMapColumns,
   buildErrorCsv,
@@ -30,6 +31,17 @@ function opportunity(overrides = {}) {
     ...overrides,
   };
 }
+
+test("WhatsApp links normalize Nigerian numbers and encode the message", () => {
+  assert.equal(
+    formatWhatsAppUrl("0803 123-4567", "Hello, Ada!"),
+    "https://wa.me/2348031234567?text=Hello%2C%20Ada!",
+  );
+  assert.equal(
+    formatWhatsAppUrl("+234-803-123-4567", "Invoice #1"),
+    "https://wa.me/2348031234567?text=Invoice%20%231",
+  );
+});
 
 test("Invoiced remains open and closed-won cash metrics use recorded receipts", () => {
   const invoiced = opportunity({ stage: "Invoiced", value: 500, probability: 80 });

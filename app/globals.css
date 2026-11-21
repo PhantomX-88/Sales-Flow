@@ -332,3 +332,63 @@
     @apply rounded-xl border border-border bg-card shadow-card;
   }
 }
+
+@page {
+  size: A4;
+  margin: 10mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+    font-size: 10pt;
+  }
+
+  body,
+  body * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    background-color: transparent !important;
+    color: #111827 !important;
+  }
+
+  .invoice-screen-only {
+    display: none !important;
+  }
+
+  .invoice-shell {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .invoice-page {
+    min-height: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+  }
+
+  .invoice-brand-mark {
+    border: 1px solid #111827;
+  }
+
+  .invoice-page section,
+  .invoice-page header,
+  .invoice-page footer,
+  .invoice-page table,
+  .invoice-page tr {
+    break-inside: avoid;
+  }
+
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+}

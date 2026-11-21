@@ -7,6 +7,7 @@ import {
   CircleX,
   Clock3,
   Mail,
+  MessageCircle,
   NotebookPen,
   Pencil,
   Phone,
@@ -43,6 +44,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { Textarea } from "@/components/ui/textarea";
 import { STAGE_ORDER } from "@/lib/pipeline-config";
 import { DealLifecyclePanel } from "@/components/dashboard/deal-lifecycle-panel";
+import { WhatsAppActionDialog } from "@/components/dashboard/whatsapp-action-dialog";
 import type { ActivityType, PipelineStage } from "@/lib/types";
 import {
   cn,
@@ -234,9 +236,27 @@ export function OpportunityDetailDrawer() {
                       label="Phone"
                       value={
                         opportunity.phone ? (
-                          <a className="text-primary hover:underline" href={`tel:${opportunity.phone}`}>
-                            {opportunity.phone}
-                          </a>
+                          <span className="flex items-center gap-1">
+                            <a className="text-primary hover:underline" href={`tel:${opportunity.phone}`}>
+                              {opportunity.phone}
+                            </a>
+                            <WhatsAppActionDialog
+                              phone={opportunity.phone}
+                              contact={opportunity.contact}
+                              company={opportunity.company}
+                              balance={formatCurrency(Math.max(opportunity.value - (opportunity.amountPaid ?? 0), 0), currency)}
+                              trigger={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`Message ${opportunity.contact} on WhatsApp`}
+                                >
+                                  <MessageCircle className="h-4 w-4 text-emerald-600" />
+                                </Button>
+                              }
+                            />
+                          </span>
                         ) : (
                           "—"
                         )

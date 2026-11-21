@@ -7,6 +7,7 @@ import { ActivitiesView } from "@/components/dashboard/activities-view";
 import { ApprovalsView } from "@/components/dashboard/approvals-view";
 import { ForecastView } from "@/components/dashboard/forecast-view";
 import { ChurnView } from "@/components/dashboard/churn-view";
+import { DailyFxModal } from "@/components/dashboard/daily-fx-modal";
 import { ImportDialog } from "@/components/dashboard/import-dialog";
 import { OpportunityDetailDrawer } from "@/components/dashboard/opportunity-detail-drawer";
 import { OpportunityFormDialog } from "@/components/dashboard/opportunity-form-dialog";
@@ -118,6 +119,7 @@ function DashboardShell() {
         onOpenChange={(open) => (open ? openImportDialog() : closeImportDialog())}
       />
       <OpportunityDetailDrawer />
+      <DailyFxModal />
     </div>
   );
 }

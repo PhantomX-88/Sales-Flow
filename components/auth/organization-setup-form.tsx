@@ -35,6 +35,10 @@ const EMPTY_SETUP: OrganizationSetupDetails = {
   averageDealSize: 0,
   teamType: "inside",
   enabledFeatures: [],
+  bankName: "",
+  bankAccountName: "",
+  bankAccountNumber: "",
+  bankPaymentNotes: "",
 };
 
 function Field({
@@ -229,6 +233,63 @@ export function OrganizationSetupForm({
             </>
           ) : null}
         </div>
+      ) : null}
+
+      {(settingsMode || step === 1) ? (
+        <section className="space-y-4 border-t border-border pt-5" aria-labelledby="bank-settlement-heading">
+          <div>
+            <h3 id="bank-settlement-heading" className="text-sm font-semibold">Bank Settlement &amp; Invoicing Details</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Optional corporate payment details to include on invoices.
+            </p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field id="org-bank-name" label="Bank Name">
+              <Input
+                id="org-bank-name"
+                placeholder="Zenith Bank, GTBank, Providus"
+                value={setup.bankName}
+                onChange={(event) => update("bankName", event.target.value)}
+                maxLength={120}
+              />
+            </Field>
+            <Field id="org-bank-account-name" label="Corporate Account Name">
+              <Input
+                id="org-bank-account-name"
+                placeholder="Lakeside Technologies Ltd"
+                value={setup.bankAccountName}
+                onChange={(event) => update("bankAccountName", event.target.value)}
+                maxLength={120}
+              />
+            </Field>
+            <Field id="org-bank-account-number" label="10-Digit NUBAN Account Number">
+              <Input
+                id="org-bank-account-number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{10}"
+                maxLength={10}
+                placeholder="0123456789"
+                value={setup.bankAccountNumber}
+                onChange={(event) => update("bankAccountNumber", event.target.value.replace(/\D/g, "").slice(0, 10))}
+                aria-describedby="org-bank-account-number-hint"
+              />
+              <p id="org-bank-account-number-hint" className="text-xs text-muted-foreground">
+                Leave blank if you do not want to display an account number.
+              </p>
+            </Field>
+            <Field id="org-bank-payment-notes" label="Additional Payment Instructions">
+              <textarea
+                id="org-bank-payment-notes"
+                className={`${selectClass} min-h-20 resize-y`}
+                value={setup.bankPaymentNotes}
+                onChange={(event) => update("bankPaymentNotes", event.target.value)}
+                maxLength={1000}
+                rows={3}
+              />
+            </Field>
+          </div>
+        </section>
       ) : null}
 
       {(settingsMode || step === 2) ? (

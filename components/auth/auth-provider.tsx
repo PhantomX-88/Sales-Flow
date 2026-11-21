@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase";
+import type { OrganizationBankDetails, OrganizationFxSettings } from "@/lib/types";
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -27,7 +28,7 @@ interface AuthContextValue {
   signOut: () => void;
 }
 
-export interface OrganizationSetupDetails {
+export interface OrganizationSetupDetails extends OrganizationBankDetails {
   name: string;
   tag: string;
   industry: string;
@@ -42,7 +43,7 @@ export interface OrganizationSetupDetails {
   enabledFeatures: string[];
 }
 
-export interface OrganizationProfile extends OrganizationSetupDetails {
+export interface OrganizationProfile extends OrganizationSetupDetails, OrganizationFxSettings {
   id: string;
   onboardingCompleted: boolean;
 }
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data: org, error: organizationError } = await supabase
         .from("organizations")
-        .select("id, name, tag, industry, country, expected_sub_users, revenue_target, currency, target_period, expected_transactions_per_month, average_deal_size, team_type, enabled_features, onboarding_completed")
+        .select("id, name, tag, industry, country, expected_sub_users, revenue_target, currency, target_period, expected_transactions_per_month, average_deal_size, team_type, enabled_features, onboarding_completed, bank_name, bank_account_name, bank_account_number, bank_payment_notes, usd_ngn_exchange_rate, fx_rate_updated_at")
         .eq("id", resolvedOrganizationId)
         .single();
       if (organizationError) return { organizationId: null, error: organizationError.message };
@@ -107,6 +108,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         averageDealSize: Number(org.average_deal_size ?? 0),
         teamType: org.team_type === "field" || org.team_type === "agency" ? org.team_type : "inside",
         enabledFeatures: Array.isArray(org.enabled_features) ? org.enabled_features.map(String) : [],
+        bankName: String(org.bank_name ?? ""),
+        bankAccountName: String(org.bank_account_name ?? ""),
+        bankAccountNumber: String(org.bank_account_number ?? ""),
+        bankPaymentNotes: String(org.bank_payment_notes ?? ""),
+        usdNgnExchangeRate: Number(org.usd_ngn_exchange_rate ?? 1650),
+        fxRateUpdatedAt: String(org.fx_rate_updated_at ?? ""),
         onboardingCompleted: Boolean(org.onboarding_completed),
       });
       return { organizationId: resolvedOrganizationId, error: null };
@@ -117,6 +124,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
   }, []);
+
+  React.useEffect(() => {
+    if (!organizationId) return;
+
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`organization-settings-${organizationId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "organizations",
+          filter: `id=eq.${organizationId}`,
+        },
+        () => {
+          void resolveOrganization();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [organizationId, resolveOrganization]);
 
   React.useEffect(() => {
     let supabase: SupabaseClient;
@@ -249,6 +281,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setup_average_deal_size: details.averageDealSize,
       setup_team_type: details.teamType,
       setup_enabled_features: details.enabledFeatures,
+      setup_bank_name: details.bankName,
+      setup_bank_account_name: details.bankAccountName,
+      setup_bank_account_number: details.bankAccountNumber,
+      setup_bank_payment_notes: details.bankPaymentNotes,
     });
     if (error || !data) return { organizationId: null, error: error?.message ?? "Organization setup did not return an ID." };
 

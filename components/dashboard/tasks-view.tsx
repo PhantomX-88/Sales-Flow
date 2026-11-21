@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CalendarPlus, CheckCircle2, Circle, CircleAlert, Clock } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Circle, CircleAlert, Clock, MessageCircle } from "lucide-react";
 
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -9,6 +9,7 @@ import { usePipeline } from "@/components/dashboard/pipeline-provider";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { WhatsAppActionDialog } from "@/components/dashboard/whatsapp-action-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,6 +118,8 @@ export function TasksView() {
             const isDone = completed.includes(task.id);
             const meta = TONE_META[task.tone];
             const Icon = meta.icon;
+            const linkedOpportunity = opportunities.find((opportunity) => opportunity.id === task.opportunityId);
+            const isOverdueFollowUp = task.id.startsWith("reminder-") && task.tone === "danger";
 
             return (
               <Card
@@ -172,6 +175,24 @@ export function TasksView() {
                   >
                     Open deal
                   </Button>
+                  {!isDone && isOverdueFollowUp && linkedOpportunity?.phone ? (
+                    <WhatsAppActionDialog
+                      phone={linkedOpportunity.phone}
+                      contact={linkedOpportunity.contact}
+                      company={linkedOpportunity.company}
+                      defaultTemplate="follow-up"
+                      trigger={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label={`Message ${linkedOpportunity.contact} on WhatsApp about ${task.title}`}
+                        >
+                          <MessageCircle className="h-4 w-4 text-emerald-600" />
+                        </Button>
+                      }
+                    />
+                  ) : null}
                 </div>
               </Card>
             );

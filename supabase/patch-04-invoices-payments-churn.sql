@@ -45,6 +45,10 @@ create table if not exists public.invoices (
   invoice_number text not null,
   description text not null,
   amount numeric(14,2) not null check (amount > 0),
+  apply_vat boolean not null default false,
+  vat_amount numeric not null default 0,
+  subtotal numeric not null default 0,
+  total_amount numeric not null default 0,
   due_date date not null,
   notes text,
   status text not null default 'pending_approval'
@@ -57,6 +61,12 @@ create table if not exists public.invoices (
     references public.opportunities(organization_id, id) on delete cascade,
   constraint invoices_org_number_unique unique (organization_id, invoice_number)
 );
+
+alter table public.invoices
+  add column if not exists apply_vat boolean not null default false,
+  add column if not exists vat_amount numeric not null default 0,
+  add column if not exists subtotal numeric not null default 0,
+  add column if not exists total_amount numeric not null default 0;
 
 create table if not exists public.churn_records (
   id uuid primary key default gen_random_uuid(),

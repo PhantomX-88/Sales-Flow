@@ -8,6 +8,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function formatWhatsAppUrl(phone: string, message: string): string {
+  let sanitizedPhone = phone.replace(/\D/g, "");
+  if (sanitizedPhone.startsWith("0") && sanitizedPhone.length === 11) {
+    sanitizedPhone = `234${sanitizedPhone.slice(1)}`;
+  }
+  return `https://wa.me/${sanitizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
 /* ------------------------------------------------------------------ */
 /* Currency & number formatting                                        */
 /* ------------------------------------------------------------------ */

@@ -138,6 +138,18 @@ export interface DatasetMetadata {
   lastUpdated: string;
 }
 
+export interface OrganizationBankDetails {
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankPaymentNotes: string;
+}
+
+export interface OrganizationFxSettings {
+  usdNgnExchangeRate: number;
+  fxRateUpdatedAt: string;
+}
+
 export interface SalesDataset {
   metadata: DatasetMetadata;
   stages: StageDefinition[];
@@ -325,6 +337,10 @@ export interface InvoiceRecord {
   invoiceNumber: string;
   description: string;
   amount: number;
+  applyVat: boolean;
+  vatAmount: number;
+  subtotal: number;
+  totalAmount: number;
   dueDate: string;
   notes?: string;
   status: InvoiceStatus;

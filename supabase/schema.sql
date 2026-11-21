@@ -107,11 +107,59 @@ create table if not exists public.organizations (
   average_deal_size numeric not null default 0 check (average_deal_size >= 0),
   team_type text not null default 'inside' check (team_type in ('field', 'inside', 'agency')),
   enabled_features text[] not null default '{}',
+  bank_name text,
+  bank_account_name text,
+  bank_account_number text,
+  bank_payment_notes text,
+  usd_ngn_exchange_rate numeric not null default 1650.00,
+  fx_rate_updated_at date not null default current_date,
   onboarding_completed boolean not null default false,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.invoice_sequences (
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  year integer not null,
+  last_number integer not null default 0,
+  primary key (organization_id, year)
+);
+
+alter table public.invoice_sequences enable row level security;
+revoke all on public.invoice_sequences from public, anon, authenticated;
+
+create or replace function public.next_invoice_number(target_org_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  new_number integer;
+begin
+  if auth.uid() is null or not exists (
+    select 1
+    from public.organization_members
+    where organization_id = target_org_id
+      and user_id = auth.uid()
+      and status = 'active'
+  ) then
+    raise exception 'Only an active organization member can request an invoice number.';
+  end if;
+
+  insert into public.invoice_sequences (organization_id, year, last_number)
+  values (target_org_id, extract(year from current_date)::integer, 1)
+  on conflict (organization_id, year)
+  do update set last_number = public.invoice_sequences.last_number + 1
+  returning last_number into new_number;
+
+  return 'LT-' || to_char(current_date, 'YYYY') || '-' || lpad(new_number::text, 4, '0');
+end;
+$$;
+
+revoke all on function public.next_invoice_number(uuid) from public, anon;
+grant execute on function public.next_invoice_number(uuid) to authenticated;
 
 alter table public.organizations
   add column if not exists name text,
@@ -127,10 +175,28 @@ alter table public.organizations
   add column if not exists average_deal_size numeric not null default 0,
   add column if not exists team_type text not null default 'inside',
   add column if not exists enabled_features text[] not null default '{}',
+  add column if not exists bank_name text,
+  add column if not exists bank_account_name text,
+  add column if not exists bank_account_number text,
+  add column if not exists bank_payment_notes text,
+  add column if not exists usd_ngn_exchange_rate numeric not null default 1650.00,
+  add column if not exists fx_rate_updated_at date not null default current_date,
   add column if not exists onboarding_completed boolean not null default false,
   add column if not exists created_by uuid references auth.users(id) on delete set null,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if to_regclass('public.invoices') is not null then
+    alter table public.invoices
+      add column if not exists apply_vat boolean not null default false,
+      add column if not exists vat_amount numeric not null default 0,
+      add column if not exists subtotal numeric not null default 0,
+      add column if not exists total_amount numeric not null default 0;
+  end if;
+end;
+$$;
 
 update public.organizations
 set slug = coalesce(
@@ -488,6 +554,8 @@ as $$
     );
 $$;
 
+drop function if exists public.save_organization_setup(uuid, text, text, text, text, integer, numeric, text, text, integer, numeric, text, text[]);
+
 create or replace function public.save_organization_setup(
   setup_organization_id uuid,
   setup_name text,
@@ -501,7 +569,11 @@ create or replace function public.save_organization_setup(
   setup_expected_transactions_per_month integer,
   setup_average_deal_size numeric,
   setup_team_type text,
-  setup_enabled_features text[]
+  setup_enabled_features text[],
+  setup_bank_name text,
+  setup_bank_account_name text,
+  setup_bank_account_number text,
+  setup_bank_payment_notes text
 )
 returns uuid
 language plpgsql
@@ -523,6 +595,10 @@ begin
   if setup_currency not in ('NGN', 'USD') then raise exception 'Currency must be NGN or USD.'; end if;
   if setup_target_period not in ('monthly', 'quarterly', 'annual') then raise exception 'Invalid target period.'; end if;
   if setup_team_type not in ('field', 'inside', 'agency') then raise exception 'Invalid team type.'; end if;
+  if nullif(trim(coalesce(setup_bank_account_number, '')), '') is not null
+    and trim(setup_bank_account_number) !~ '^[0-9]{10}$' then
+    raise exception 'Bank account number must contain exactly 10 digits.';
+  end if;
   if setup_expected_sub_users < 0 or setup_revenue_target < 0
     or setup_expected_transactions_per_month < 0 or setup_average_deal_size < 0 then
     raise exception 'Expected users, targets, transactions, and average deal size must be non-negative.';
@@ -549,13 +625,16 @@ begin
     insert into public.organizations (
       id, name, slug, tag, industry, country, expected_sub_users, revenue_target, currency,
       target_period, expected_transactions_per_month, average_deal_size, team_type,
-      enabled_features, onboarding_completed, created_by
+      enabled_features, bank_name, bank_account_name, bank_account_number, bank_payment_notes,
+      onboarding_completed, created_by
     ) values (
       saved_organization_id, trim(setup_name), organization_slug, setup_tag,
       trim(setup_industry), trim(setup_country),
       setup_expected_sub_users, setup_revenue_target, setup_currency, setup_target_period,
       setup_expected_transactions_per_month, setup_average_deal_size, setup_team_type,
-      coalesce(setup_enabled_features, '{}'), true, auth.uid()
+      coalesce(setup_enabled_features, '{}'), nullif(trim(setup_bank_name), ''),
+      nullif(trim(setup_bank_account_name), ''), nullif(trim(setup_bank_account_number), ''),
+      nullif(trim(setup_bank_payment_notes), ''), true, auth.uid()
     );
 
     insert into public.organization_members (organization_id, user_id, role, status)
@@ -578,6 +657,10 @@ begin
         average_deal_size = setup_average_deal_size,
         team_type = setup_team_type,
         enabled_features = coalesce(setup_enabled_features, '{}'),
+        bank_name = nullif(trim(setup_bank_name), ''),
+        bank_account_name = nullif(trim(setup_bank_account_name), ''),
+        bank_account_number = nullif(trim(setup_bank_account_number), ''),
+        bank_payment_notes = nullif(trim(setup_bank_payment_notes), ''),
         onboarding_completed = true,
         updated_at = now()
     where id = setup_organization_id;
@@ -599,10 +682,61 @@ begin
 end;
 $$;
 
-revoke all on function public.save_organization_setup(uuid, text, text, text, text, integer, numeric, text, text, integer, numeric, text, text[]) from public, anon;
+revoke all on function public.save_organization_setup(uuid, text, text, text, text, integer, numeric, text, text, integer, numeric, text, text[], text, text, text, text) from public, anon;
 revoke all on function public.is_organization_tag_available(text, uuid) from public, anon;
 grant execute on function public.is_organization_tag_available(text, uuid) to authenticated;
-grant execute on function public.save_organization_setup(uuid, text, text, text, text, integer, numeric, text, text, integer, numeric, text, text[]) to authenticated;
+grant execute on function public.save_organization_setup(uuid, text, text, text, text, integer, numeric, text, text, integer, numeric, text, text[], text, text, text, text) to authenticated;
+
+create or replace function public.update_organization_fx_rate(
+  target_organization_id uuid,
+  new_usd_ngn_exchange_rate numeric
+)
+returns date
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_date date := current_date;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if new_usd_ngn_exchange_rate is null or new_usd_ngn_exchange_rate <= 0 then
+    raise exception 'Exchange rate must be greater than zero.';
+  end if;
+  if not exists (
+    select 1 from public.organization_members
+    where organization_id = target_organization_id
+      and user_id = auth.uid()
+      and status = 'active'
+      and role in ('owner', 'admin')
+  ) then
+    raise exception 'Only an active organization admin or owner can update the exchange rate.';
+  end if;
+
+  update public.organizations
+  set usd_ngn_exchange_rate = new_usd_ngn_exchange_rate,
+      fx_rate_updated_at = updated_date,
+      updated_at = now()
+  where id = target_organization_id;
+
+  if not found then raise exception 'Organization not found.'; end if;
+
+  insert into public.audit_log (organization_id, actor_id, action, entity, entity_id, metadata)
+  values (
+    target_organization_id,
+    auth.uid(),
+    'organization.fx_rate_updated',
+    'organization',
+    target_organization_id,
+    jsonb_build_object('usd_ngn_exchange_rate', new_usd_ngn_exchange_rate, 'fx_rate_updated_at', updated_date)
+  );
+
+  return updated_date;
+end;
+$$;
+
+revoke all on function public.update_organization_fx_rate(uuid, numeric) from public, anon;
+grant execute on function public.update_organization_fx_rate(uuid, numeric) to authenticated;
 
 create or replace function public.is_workspace_member(target_workspace_id uuid)
 returns boolean
@@ -720,6 +854,20 @@ create policy opportunities_owner_access on public.opportunities
 create policy activities_owner_access on public.activities
   for all using (public.is_organization_owner(organization_id))
   with check (public.is_organization_owner(organization_id));
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+    and not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'organizations'
+    ) then
+    execute 'alter publication supabase_realtime add table public.organizations';
+  end if;
+end;
+$$;
 
 -- ============================================================
 -- PHASE 2 — Sub-user management and invitations (idempotent)

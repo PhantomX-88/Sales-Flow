@@ -24,7 +24,7 @@ export default function PrivacyPage() {
     >
       <Section title="Who is responsible">
         <p>
-          SalesFlow is operated by <strong className="text-foreground">[insert legal entity name and business address]</strong>. References to SalesFlow, we, or us mean this operator.
+          SalesFlow is operated by <strong className="text-foreground">Lakeside Technologies Ltd (trading as SalesFlow)</strong>, located in Lagos, Nigeria. References to SalesFlow, we, or us mean this operator.
         </p>
         <p>
           For account and service administration, the operator determines how account information is used. For customer, prospect, opportunity, and activity details entered by a workspace, that workspace’s organization generally decides why the information is used; SalesFlow processes it to provide the workspace service.
@@ -65,7 +65,7 @@ export default function PrivacyPage() {
       </Section>
 
       <Section title="Your choices and rights">
-        <p>You can review or correct workspace records through the service when the relevant controls are available, or ask your organization’s owner to help. Depending on your location and relationship with the organization, you may have rights to access, correct, delete, restrict, object to, or receive a copy of personal information. Send requests to <strong className="text-foreground">[insert verified privacy contact email]</strong> and identify the organization whose workspace is involved.</p>
+        <p>You can review or correct workspace records through the service when the relevant controls are available, or ask your organization’s owner to help. Depending on your location and relationship with the organization, you may have rights to access, correct, delete, restrict, object to, or receive a copy of personal information. Send requests to <a className="text-foreground underline" href="mailto:legal@lakesidetech.ng">legal@lakesidetech.ng</a> and identify the organization whose workspace is involved.</p>
         <p>Where your organization controls the information, it may need to respond to your request. You may also have the right to complain to the privacy regulator in your jurisdiction.</p>
       </Section>
 
@@ -75,7 +75,7 @@ export default function PrivacyPage() {
 
       <Section title="Changes and contact">
         <p>We may update this notice as the service changes. The revised date will appear at the top of this page. Material changes should be communicated to workspace owners through an appropriate channel.</p>
-        <p>Privacy contact: <strong className="text-foreground">[insert verified privacy contact email and postal address]</strong>.</p>
+        <p>Privacy and legal contact: <a className="text-foreground underline" href="mailto:legal@lakesidetech.ng">legal@lakesidetech.ng</a>. Service support: <a className="text-foreground underline" href="mailto:support@lakesidetech.ng">support@lakesidetech.ng</a>. Address: Lagos, Nigeria.</p>
       </Section>
     </LegalPageLayout>
   );

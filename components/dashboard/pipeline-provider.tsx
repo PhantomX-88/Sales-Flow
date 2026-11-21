@@ -171,6 +171,15 @@ interface PipelineContextValue {
   createOpportunity: (draft: OpportunityDraft) => Promise<boolean>;
   updateOpportunity: (id: string, draft: OpportunityDraft) => Promise<boolean>;
   moveStage: (id: string, stage: PipelineStage) => void;
+  recordOpportunityPayment: (
+    opportunityId: string,
+    payment: {
+      amount: number;
+      paymentFrequency?: string;
+      installmentAmount?: number;
+      nextPaymentDate?: string;
+    },
+  ) => Promise<boolean>;
   markWon: (id: string) => void;
   markLost: (id: string) => void;
   /* Phase 5 deletion flow */
@@ -1108,7 +1117,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
 
       void pushActivity({
         type: stage === "Closed Won" ? "won" : stage === "Closed Lost" ? "lost" : "stage_change",
-        text: `${existing.contact} moved ${existing.company} to ${stage}`,
+        text: `${displayName ?? "You"} moved ${existing.company} to ${stage}`,
         opportunityId: id,
       });
 
@@ -1118,7 +1127,126 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
         variant: stage === "Closed Lost" ? "destructive" : "success",
       });
     },
-    [opportunities, pushActivity, organizationId],
+    [displayName, opportunities, pushActivity, organizationId],
+  );
+
+  const recordOpportunityPayment = React.useCallback(
+    async (
+      opportunityId: string,
+      payment: {
+        amount: number;
+        paymentFrequency?: string;
+        installmentAmount?: number;
+        nextPaymentDate?: string;
+      },
+    ) => {
+      if (!organizationId) return false;
+      const existing = opportunities.find((opportunity) => opportunity.id === opportunityId);
+      if (!existing) {
+        toast({
+          title: "Payment could not be saved.",
+          description: "The opportunity is no longer available.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const validPaymentFrequency = (
+        value: string,
+      ): value is NonNullable<Opportunity["paymentFrequency"]> =>
+        value === "monthly" || value === "quarterly" || value === "triannual" || value === "biannual";
+
+      if (
+        !Number.isFinite(payment.amount)
+        || payment.amount <= 0
+        || (payment.paymentFrequency !== undefined && !validPaymentFrequency(payment.paymentFrequency))
+      ) {
+        toast({
+          title: "Payment could not be saved.",
+          description: "Enter a valid payment amount and schedule.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const amountPaid = (existing.amountPaid ?? 0) + payment.amount;
+      if (amountPaid > existing.value) {
+        toast({
+          title: "Payment could not be saved.",
+          description: "The payment cannot exceed the remaining deal balance.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const paymentFrequency = payment.paymentFrequency && validPaymentFrequency(payment.paymentFrequency)
+        ? payment.paymentFrequency
+        : undefined;
+      setOpportunities((current) =>
+        current.map((opportunity) =>
+          opportunity.id === opportunityId
+            ? {
+                ...opportunity,
+                amountPaid,
+                paymentFrequency,
+                installmentAmount: payment.installmentAmount,
+                nextPaymentDate: payment.nextPaymentDate,
+              }
+            : opportunity,
+        ),
+      );
+
+      const restorePreviousPayment = () => {
+        setOpportunities((current) =>
+          current.map((opportunity) =>
+            opportunity.id === opportunityId
+              ? {
+                  ...opportunity,
+                  amountPaid: existing.amountPaid,
+                  paymentFrequency: existing.paymentFrequency,
+                  installmentAmount: existing.installmentAmount,
+                  nextPaymentDate: existing.nextPaymentDate,
+                }
+              : opportunity,
+          ),
+        );
+      };
+
+      try {
+        const { data: saved, error } = await getSupabaseClient()
+          .from("opportunities")
+          .update({
+            amount_paid: amountPaid,
+            payment_frequency: paymentFrequency ?? null,
+            installment_amount: payment.installmentAmount ?? null,
+            next_payment_date: payment.nextPaymentDate ?? null,
+          })
+          .eq("id", opportunityId)
+          .eq("organization_id", organizationId)
+          .select("id")
+          .maybeSingle();
+
+        if (error || !saved) {
+          restorePreviousPayment();
+          toast({
+            title: "Payment could not be saved.",
+            description: error?.message ?? "The opportunity was not updated. Check your access and try again.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        return true;
+      } catch (error) {
+        restorePreviousPayment();
+        toast({
+          title: "Payment could not be saved.",
+          description: error instanceof Error ? error.message : "The opportunity was not updated.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    },
+    [opportunities, organizationId],
   );
 
   const closeDeal = React.useCallback(
@@ -1845,6 +1973,7 @@ export function PipelineProvider({ children }: { children: React.ReactNode }) {
     createOpportunity,
     updateOpportunity,
     moveStage,
+    recordOpportunityPayment,
     markWon,
     markLost,
     deleteOpportunity,
